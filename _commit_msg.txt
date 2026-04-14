@@ -1,0 +1,6 @@
+feat(db): Setup Turso client and schema initialization
+
+- Installed `@libsql/client` for Turso database interaction.
+- Created `src/lib/db/schema.ts` with SQL `CREATE TABLE` statements.
+- Developed `src/lib/db/client.ts` for database connection and schema initialization, handling multiple SQL statements.
+- Added `db:init` script to `package.json` and configured it to load environment variables using `dotenv`.
