@@ -1,6 +1,7 @@
-feat(api): Implement PUT /api/events/[eventId] to update event details
+feat(api): Implement POST /api/rsvps to submit/update RSVPs
 
-- Added `PUT` handler to `src/app/api/events/[eventId]/route.ts`.
-- Verifies `admin_token` for authorization.
-- Dynamically constructs and executes SQL `UPDATE` statements for event details.
-- Handles authorization failures and non-existent events.
+- Implemented the Next.js Route Handler for `POST /api/rsvps`.
+- Generates `respondent_token` if not provided.
+- Uses `INSERT OR REPLACE` for upsert functionality in the `rsvps` table.
+- Stores `selected_slots` as a JSON string.
+- Returns the `respondent_token` for client-side tracking.
