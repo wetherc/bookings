@@ -16,30 +16,50 @@ import {
 } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { TimeRangePicker } from '@/components/ui/time-range-picker';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { CalendarIcon } from '@radix-ui/react-icons';
+import { CalendarIcon, TrashIcon } from '@radix-ui/react-icons';
+
+interface TimeRange {
+  start: string;
+  end: string;
+}
+
+interface ProposedSlot {
+  dates: Date[];
+  timeRanges: TimeRange[];
+}
 
 export default function Home() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [blockMinutes, setBlockMinutes] = useState(30); // Default to 30 minutes
-  const [selectedDates, setSelectedDates] = useState<Date[]>([]); // For non-contiguous dates
-  const [selectedTimesInput, setSelectedTimesInput] = useState('09:00,10:00,11:00,12:00,13:00,14:00,15:00,16:00'); // Comma-separated time strings (e.g., "HH:MM")
+  const [blockMinutes, setBlockMinutes] = useState(30);
+  const [proposedSlots, setProposedSlots] = useState<ProposedSlot[]>([]);
+  const [currentDates, setCurrentDates] = useState<Date[]>([]);
+  const [currentTimeRanges, setCurrentTimeRanges] = useState<TimeRange[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const router = useRouter();
 
-  const handleSelectDate = (date: Date | undefined) => {
-    if (!date) return;
+  const handleAddProposedSlot = () => {
+    if (currentDates.length === 0 || currentTimeRanges.length === 0) {
+      // Maybe show a more user-friendly error message
+      return;
+    }
+    const newProposedSlot: ProposedSlot = {
+      dates: currentDates,
+      timeRanges: currentTimeRanges,
+    };
+    setProposedSlots([...proposedSlots, newProposedSlot]);
+    // Reset current selections
+    setCurrentDates([]);
+    // We don't reset currentTimeRanges here to allow users to apply the same times to different dates.
+  };
 
-    // Toggle selection for non-contiguous dates
-    setSelectedDates((prev) =>
-      prev.some((d) => d.toDateString() === date.toDateString())
-        ? prev.filter((d) => d.toDateString() !== date.toDateString())
-        : [...prev, date].sort((a, b) => a.getTime() - b.getTime()) // Keep sorted
-    );
+  const handleRemoveProposedSlot = (index: number) => {
+    setProposedSlots(proposedSlots.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -48,35 +68,35 @@ export default function Home() {
     setError(null);
 
     try {
-      if (selectedDates.length === 0) {
-        throw new Error('Please select at least one date.');
-      }
-
-      const times = selectedTimesInput
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => s.match(/^([01]\d|2[0-3]):([0-5]\d)$/)); // Basic HH:MM validation
-
-      if (times.length === 0) {
-        throw new Error('Please enter valid times (e.g., HH:MM).');
+      if (proposedSlots.length === 0) {
+        throw new Error('Please add at least one time slot to the event.');
       }
 
       const time_slots: string[] = [];
-      selectedDates.forEach((date) => {
-        times.forEach((time) => {
-          // Create a new Date object for each combination of date and time
-          const [hours, minutes] = time.split(':').map(Number);
-          const dateTime = new Date(date);
-          dateTime.setHours(hours, minutes, 0, 0); // Set time, seconds, and milliseconds to 0
+      proposedSlots.forEach((slot) => {
+        slot.dates.forEach((date) => {
+          slot.timeRanges.forEach((range) => {
+            const [startHours, startMinutes] = range.start.split(':').map(Number);
+            const [endHours, endMinutes] = range.end.split(':').map(Number);
 
-          // Convert to ISO string, ensuring it's in UTC or a consistent timezone for backend
-          // For simplicity, let's assume local time is fine for now and convert to ISO.
-          // A more robust solution might involve timezone handling.
-          time_slots.push(dateTime.toISOString());
+            let current = new Date(date);
+            current.setHours(startHours, startMinutes, 0, 0);
+
+            const endDate = new Date(date);
+            endDate.setHours(endHours, endMinutes, 0, 0);
+
+            while (current < endDate) {
+              time_slots.push(current.toISOString());
+              current.setMinutes(current.getMinutes() + blockMinutes);
+            }
+          });
         });
       });
-      // Sort time_slots to maintain consistency
-      time_slots.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+      // Remove duplicates and sort
+      const unique_time_slots = [...new Set(time_slots)].sort(
+        (a, b) => new Date(a).getTime() - new Date(b).getTime()
+      );
 
       const response = await fetch('/api/events', {
         method: 'POST',
@@ -87,7 +107,7 @@ export default function Home() {
           title,
           description,
           block_minutes: blockMinutes,
-          time_slots,
+          time_slots: unique_time_slots,
         }),
       });
 
@@ -108,7 +128,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen w-full flex flex-col items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Create a New Event</CardTitle>
           <p className="text-muted-foreground text-center text-sm">
@@ -120,7 +140,6 @@ export default function Home() {
             <div className="space-y-2">
               <Label htmlFor="title">Event Title</Label>
               <Input
-                type="text"
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -144,7 +163,7 @@ export default function Home() {
                 value={String(blockMinutes)}
                 onValueChange={(value) => setBlockMinutes(Number(value))}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger>
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
                 <SelectContent>
@@ -155,61 +174,82 @@ export default function Home() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="timeSlots">Select Dates</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={'outline'}
-                    className={cn(
-                      'w-full justify-start text-left font-normal',
-                      !selectedDates.length && 'text-muted-foreground'
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDates.length > 0 ? (
-                      <span>{`${selectedDates.length} date(s) selected`}</span>
-                    ) : (
-                      <span>Pick dates</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="multiple"
-                    selected={selectedDates}
-                    onSelect={(dates) => setSelectedDates(dates || [])}
-                    initialFocus
-                  />
-                  <div className="p-2 border-t">
-                    <h4 className="text-sm font-semibold mb-1">Selected Dates:</h4>
-                    {selectedDates.length > 0 ? (
-                      <ul className="text-sm">
-                        {selectedDates.map((date, index) => (
-                          <li key={index}>{format(date, 'PPP')}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No dates selected.</p>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
+            <div className="p-4 border rounded-lg space-y-4">
+              <h3 className="font-semibold text-lg">Propose Time Slots</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>1. Select Dates</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={'outline'}
+                        className={cn(
+                          'w-full justify-start text-left font-normal',
+                          !currentDates.length && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {currentDates.length > 0 ? (
+                          <span>{`${currentDates.length} date(s) selected`}</span>
+                        ) : (
+                          <span>Pick dates</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="multiple"
+                        selected={currentDates}
+                        onSelect={(dates) => setCurrentDates(dates || [])}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <Label>2. Select Time Ranges</Label>
+                  <TimeRangePicker onTimeRangesChange={setCurrentTimeRanges} />
+                </div>
+              </div>
+              <Button
+                type="button"
+                onClick={handleAddProposedSlot}
+                className="w-full"
+                disabled={currentDates.length === 0 || currentTimeRanges.length === 0}
+              >
+                Add to Event
+              </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="selectedTimesInput">
-                Available Times (Comma-separated, e.g., HH:MM)
-              </Label>
-              <Textarea
-                id="selectedTimesInput"
-                value={selectedTimesInput}
-                onChange={(e) => setSelectedTimesInput(e.target.value)}
-                rows={3}
-                placeholder="e.g., 09:00, 10:00, 14:30"
-                required
-              />
-            </div>
+            {proposedSlots.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="font-semibold text-lg">Proposed Event Slots</h3>
+                <ul className="space-y-2">
+                  {proposedSlots.map((slot, index) => (
+                    <li
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-muted rounded-md"
+                    >
+                      <div>
+                        <p className="font-semibold">
+                          {slot.dates.map(d => format(d, 'PPP')).join(', ')}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {slot.timeRanges.map(r => `${r.start}-${r.end}`).join(', ')}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveProposedSlot(index)}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {error && <p className="text-destructive text-xs italic">{error}</p>}
 

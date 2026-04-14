@@ -17,9 +17,20 @@ import {
 } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { TimeRangePicker } from '@/components/ui/time-range-picker';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
-import { CalendarIcon } from '@radix-ui/react-icons';
+import { format, parseISO } from 'date-fns';
+import { CalendarIcon, TrashIcon } from '@radix-ui/react-icons';
+
+interface TimeRange {
+  start: string;
+  end: string;
+}
+
+interface ProposedSlot {
+  dates: Date[];
+  timeRanges: TimeRange[];
+}
 
 interface EventData {
   event_id: string;
@@ -54,21 +65,74 @@ export default function AdminEventPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editBlockMinutes, setEditBlockMinutes] = useState(30);
-  const [editSelectedDates, setEditSelectedDates] = useState<Date[]>([]); // For non-contiguous dates
-  const [editSelectedTimesInput, setEditSelectedTimesInput] = useState('09:00,10:00,11:00,12:00,13:00,14:00,15:00,16:00'); // Comma-separated time strings (e.g., "HH:MM")
+  const [editProposedSlots, setEditProposedSlots] = useState<ProposedSlot[]>([]);
+  const [editCurrentDates, setEditCurrentDates] = useState<Date[]>([]);
+  const [editCurrentTimeRanges, setEditCurrentTimeRanges] = useState<TimeRange[]>([]);
   const [isUpdatingEvent, setIsUpdatingEvent] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
 
   const publicLink = typeof window !== 'undefined' ? `${window.location.origin}/events/${eventId}` : '';
 
-  const handleSelectEditDate = (date: Date | undefined) => {
-    if (!date) return;
-    setEditSelectedDates((prev) =>
-      prev.some((d) => d.toDateString() === date.toDateString())
-        ? prev.filter((d) => d.toDateString() !== date.toDateString())
-        : [...prev, date].sort((a, b) => a.getTime() - b.getTime())
-    );
+  const handleAddEditProposedSlot = () => {
+    if (editCurrentDates.length === 0 || editCurrentTimeRanges.length === 0) {
+      return;
+    }
+    const newProposedSlot: ProposedSlot = {
+      dates: editCurrentDates,
+      timeRanges: editCurrentTimeRanges,
+    };
+    setEditProposedSlots([...editProposedSlots, newProposedSlot]);
+    setEditCurrentDates([]);
   };
+
+  const handleRemoveEditProposedSlot = (index: number) => {
+    setEditProposedSlots(editProposedSlots.filter((_, i) => i !== index));
+  };
+  
+  const groupTimeSlots = (timeSlots: string[], blockMinutes: number): ProposedSlot[] => {
+    if (!timeSlots || timeSlots.length === 0) {
+        return [];
+    }
+
+    const slotsByDate: { [key: string]: Date[] } = {};
+    timeSlots.forEach(slot => {
+        const date = parseISO(slot);
+        const dateString = format(date, 'yyyy-MM-dd');
+        if (!slotsByDate[dateString]) {
+            slotsByDate[dateString] = [];
+        }
+        slotsByDate[dateString].push(date);
+    });
+
+    const proposedSlots: ProposedSlot[] = [];
+    for (const dateString in slotsByDate) {
+        const dates = slotsByDate[dateString].sort((a, b) => a.getTime() - b.getTime());
+        const timeRanges: TimeRange[] = [];
+        
+        let currentRange: TimeRange | null = null;
+        dates.forEach((date, i) => {
+            if (!currentRange) {
+                currentRange = { start: format(date, 'HH:mm'), end: '' };
+            }
+
+            const nextDate = dates[i + 1];
+            if (!nextDate || nextDate.getTime() - date.getTime() > blockMinutes * 60 * 1000) {
+                const endDate = new Date(date.getTime() + blockMinutes * 60 * 1000);
+                currentRange.end = format(endDate, 'HH:mm');
+                timeRanges.push(currentRange);
+                currentRange = null;
+            }
+        });
+        
+        proposedSlots.push({
+            dates: [parseISO(dateString)],
+            timeRanges: timeRanges,
+        });
+    }
+
+    return proposedSlots;
+};
+
 
   const fetchEventData = async () => {
     if (!eventId) return;
@@ -87,15 +151,10 @@ export default function AdminEventPage() {
       setEditTitle(data.event.title);
       setEditDescription(data.event.description || '');
       setEditBlockMinutes(data.event.block_minutes);
-      // Convert stored ISO strings back to Date objects for the calendar
-      setEditSelectedDates(data.event.time_slots.map(s => new Date(s)));
-      // Attempt to extract times from the first slot, or use default if none
-      if (data.event.time_slots.length > 0) {
-        const uniqueTimes = Array.from(new Set(
-          data.event.time_slots.map(s => format(new Date(s), 'HH:mm'))
-        )).join(',');
-        setEditSelectedTimesInput(uniqueTimes);
-      }
+      
+      const groupedSlots = groupTimeSlots(data.event.time_slots, data.event.block_minutes);
+      setEditProposedSlots(groupedSlots);
+      
     } catch (err: any) {
       setError(err.message || 'An error occurred while loading event.');
       console.error('Fetch event error:', err);
@@ -106,7 +165,7 @@ export default function AdminEventPage() {
 
   useEffect(() => {
     fetchEventData();
-  }, [eventId, adminToken]); // Refetch if eventId or adminToken changes
+  }, [eventId, adminToken]);
 
   const handleUpdateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,29 +180,34 @@ export default function AdminEventPage() {
     }
 
     try {
-      if (editSelectedDates.length === 0) {
-        throw new Error('Please select at least one date.');
+      if (editProposedSlots.length === 0) {
+        throw new Error('Please add at least one time slot to the event.');
       }
 
-      const times = editSelectedTimesInput
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => s.match(/^([01]\d|2[0-3]):([0-5]\d)$/));
+      const time_slots: string[] = [];
+      editProposedSlots.forEach((slot) => {
+        slot.dates.forEach((date) => {
+          slot.timeRanges.forEach((range) => {
+            const [startHours, startMinutes] = range.start.split(':').map(Number);
+            const [endHours, endMinutes] = range.end.split(':').map(Number);
 
-      if (times.length === 0) {
-        throw new Error('Please enter valid times (e.g., HH:MM).');
-      }
+            let current = new Date(date);
+            current.setHours(startHours, startMinutes, 0, 0);
 
-      const updated_time_slots: string[] = [];
-      editSelectedDates.forEach((date) => {
-        times.forEach((time) => {
-          const [hours, minutes] = time.split(':').map(Number);
-          const dateTime = new Date(date);
-          dateTime.setHours(hours, minutes, 0, 0);
-          updated_time_slots.push(dateTime.toISOString());
+            const endDate = new Date(date);
+            endDate.setHours(endHours, endMinutes, 0, 0);
+
+            while (current < endDate) {
+              time_slots.push(current.toISOString());
+              current.setMinutes(current.getMinutes() + editBlockMinutes);
+            }
+          });
         });
       });
-      updated_time_slots.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+      const unique_time_slots = [...new Set(time_slots)].sort(
+        (a, b) => new Date(a).getTime() - new Date(b).getTime()
+      );
 
       const response = await fetch(`/api/events/${eventId}`, {
         method: 'PUT',
@@ -151,11 +215,11 @@ export default function AdminEventPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          admin_token: adminToken, // Pass token for authorization
+          admin_token: adminToken,
           title: editTitle,
           description: editDescription,
           block_minutes: editBlockMinutes,
-          time_slots: updated_time_slots,
+          time_slots: unique_time_slots,
         }),
       });
 
@@ -165,7 +229,7 @@ export default function AdminEventPage() {
       }
 
       setUpdateSuccess(true);
-      fetchEventData(); // Re-fetch event data to reflect changes
+      fetchEventData();
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred during event update.');
       console.error('Event update error:', err);
@@ -186,12 +250,11 @@ export default function AdminEventPage() {
     return <div className="text-center p-8 text-red-500">Event not found or unauthorized access.</div>;
   }
 
-  // --- RSVP Visualization ---
-  const allTimeSlots = eventData.time_slots.sort(); // Sort for consistent display
+  const allTimeSlots = eventData.time_slots.sort();
   const rsvpSummary: { [slot: string]: string[] } = {};
 
   allTimeSlots.forEach(slot => {
-    rsvpSummary[slot] = []; // Initialize each slot with an empty array of attendees
+    rsvpSummary[slot] = [];
   });
 
   rsvps.forEach(rsvp => {
@@ -215,16 +278,8 @@ export default function AdminEventPage() {
           <section>
             <h2 className="text-xl font-semibold mb-3">Public Shareable Link</h2>
             <div className="flex items-center">
-              <Input
-                type="text"
-                readOnly
-                value={publicLink}
-                className="flex-grow p-2"
-              />
-              <Button
-                onClick={() => navigator.clipboard.writeText(publicLink)}
-                className="ml-2"
-              >
+              <Input type="text" readOnly value={publicLink} className="flex-grow p-2" />
+              <Button onClick={() => navigator.clipboard.writeText(publicLink)} className="ml-2">
                 Copy
               </Button>
             </div>
@@ -239,7 +294,6 @@ export default function AdminEventPage() {
               <div className="space-y-2">
                 <Label htmlFor="editTitle">Event Title</Label>
                 <Input
-                  type="text"
                   id="editTitle"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
@@ -254,7 +308,7 @@ export default function AdminEventPage() {
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={3}
-                ></Textarea>
+                />
               </div>
 
               <div className="space-y-2">
@@ -263,7 +317,7 @@ export default function AdminEventPage() {
                   value={String(editBlockMinutes)}
                   onValueChange={(value) => setEditBlockMinutes(Number(value))}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select duration" />
                   </SelectTrigger>
                   <SelectContent>
@@ -274,61 +328,82 @@ export default function AdminEventPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="editTimeSlots">Select Dates</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={'outline'}
-                      className={cn(
-                        'w-full justify-start text-left font-normal',
-                        !editSelectedDates.length && 'text-muted-foreground'
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {editSelectedDates.length > 0 ? (
-                        <span>{`${editSelectedDates.length} date(s) selected`}</span>
-                      ) : (
-                        <span>Pick dates</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="multiple"
-                      selected={editSelectedDates}
-                      onSelect={(dates) => setEditSelectedDates(dates || [])}
-                      initialFocus
-                    />
-                    <div className="p-2 border-t">
-                      <h4 className="text-sm font-semibold mb-1">Selected Dates:</h4>
-                      {editSelectedDates.length > 0 ? (
-                        <ul className="text-sm">
-                          {editSelectedDates.map((date, index) => (
-                            <li key={index}>{format(date, 'PPP')}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No dates selected.</p>
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+              <div className="p-4 border rounded-lg space-y-4">
+                <h3 className="font-semibold text-lg">Propose Time Slots</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>1. Select Dates</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={'outline'}
+                          className={cn(
+                            'w-full justify-start text-left font-normal',
+                            !editCurrentDates.length && 'text-muted-foreground'
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {editCurrentDates.length > 0 ? (
+                            <span>{`${editCurrentDates.length} date(s) selected`}</span>
+                          ) : (
+                            <span>Pick dates</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="multiple"
+                          selected={editCurrentDates}
+                          onSelect={(dates) => setEditCurrentDates(dates || [])}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>2. Select Time Ranges</Label>
+                    <TimeRangePicker onTimeRangesChange={setEditCurrentTimeRanges} />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleAddEditProposedSlot}
+                  className="w-full"
+                  disabled={editCurrentDates.length === 0 || editCurrentTimeRanges.length === 0}
+                >
+                  Add to Event
+                </Button>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="editSelectedTimesInput">
-                  Available Times (Comma-separated, e.g., HH:MM)
-                </Label>
-                <Textarea
-                  id="editSelectedTimesInput"
-                  value={editSelectedTimesInput}
-                  onChange={(e) => setEditSelectedTimesInput(e.target.value)}
-                  rows={3}
-                  placeholder="e.g., 09:00, 10:00, 14:30"
-                  required
-                ></Textarea>
-              </div>
+              {editProposedSlots.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-lg">Proposed Event Slots</h3>
+                  <ul className="space-y-2">
+                    {editProposedSlots.map((slot, index) => (
+                      <li
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-muted rounded-md"
+                      >
+                        <div>
+                          <p className="font-semibold">
+                            {slot.dates.map(d => format(d, 'PPP')).join(', ')}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {slot.timeRanges.map(r => `${r.start}-${r.end}`).join(', ')}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveEditProposedSlot(index)}
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {error && <p className="text-destructive text-xs italic">{error}</p>}
               {updateSuccess && (
