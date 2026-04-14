@@ -1,7 +1,8 @@
-feat(frontend): Implement event creation form on homepage
+feat(frontend): Implement public RSVP page for events
 
-- Replaced default content of `src/app/page.tsx` with an event creation form.
-- Form includes fields for title, description, block duration, and time slots.
-- Uses `useState` for form state and `useRouter` for navigation.
-- Handles form submission by calling `POST /api/events` endpoint.
-- Redirects to the admin page upon successful event creation.
+- Created `src/app/events/[eventId]/page.tsx` to display event details and allow RSVPs.
+- Fetches event and RSVP data using `GET /api/events/[eventId]`.
+- Implements UI for name input and time slot selection.
+- Stores/retrieves `respondent_token` in `localStorage` for returning users.
+- Submits RSVP data via `POST /api/rsvps` endpoint.
+- Displays basic RSVP list and loading/error states.
