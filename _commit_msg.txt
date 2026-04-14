@@ -1,8 +1,6 @@
-feat(api): Implement GET /api/events/[eventId] to fetch event details and RSVPs
+feat(api): Implement PUT /api/events/[eventId] to update event details
 
-- Implemented the Next.js Route Handler for `GET /api/events/[eventId]`.
-- Fetches event details from the Turso `events` table.
-- Fetches all associated RSVPs from the `rsvps` table.
-- Handles JSON parsing for `time_slots` and `selected_slots`.
-- Returns combined event and RSVP data.
-- Includes 404 error handling for non-existent events.
+- Added `PUT` handler to `src/app/api/events/[eventId]/route.ts`.
+- Verifies `admin_token` for authorization.
+- Dynamically constructs and executes SQL `UPDATE` statements for event details.
+- Handles authorization failures and non-existent events.

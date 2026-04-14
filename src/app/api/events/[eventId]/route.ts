@@ -41,3 +41,68 @@ export async function GET(
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export async function PUT(
+  request: Request,
+  { params }: { params: { eventId: string } }
+) {
+  try {
+    const { eventId } = params;
+    const { admin_token, ...updateData } = await request.json();
+
+    if (!admin_token) {
+      return NextResponse.json({ error: 'Admin token is required' }, { status: 401 });
+    }
+
+    const db = getDbClient();
+
+    // Verify admin token
+    const tokenCheckResult = await db.execute({
+      sql: 'SELECT admin_token FROM events WHERE event_id = :eventId',
+      args: { eventId },
+    });
+
+    if (tokenCheckResult.rows.length === 0) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+
+    if (tokenCheckResult.rows[0].admin_token !== admin_token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    // Build update query dynamically
+    const updateFields: string[] = [];
+    const args: Record<string, any> = { eventId };
+
+    if (updateData.title !== undefined) {
+      updateFields.push('title = :title');
+      args.title = updateData.title;
+    }
+    if (updateData.description !== undefined) {
+      updateFields.push('description = :description');
+      args.description = updateData.description;
+    }
+    if (updateData.block_minutes !== undefined) {
+      updateFields.push('block_minutes = :block_minutes');
+      args.block_minutes = updateData.block_minutes;
+    }
+    if (updateData.time_slots !== undefined) {
+      updateFields.push('time_slots = :time_slots');
+      args.time_slots = JSON.stringify(updateData.time_slots);
+    }
+
+    if (updateFields.length === 0) {
+      return NextResponse.json({ message: 'No fields to update' }, { status: 200 });
+    }
+
+    const updateSql = `UPDATE events SET ${updateFields.join(', ')} WHERE event_id = :eventId`;
+
+    await db.execute({ sql: updateSql, args });
+
+    return NextResponse.json({ message: 'Event updated successfully' }, { status: 200 });
+  } catch (error) {
+    console.error('Error updating event:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
