@@ -107,17 +107,18 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+    <main className="min-h-screen w-full flex flex-col items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">Create New Event</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">Create a New Event</CardTitle>
+          <p className="text-muted-foreground text-center text-sm">
+            Fill out the form below to create a new event.
+          </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <Label htmlFor="title" className="mb-2 block">
-                Event Title
-              </Label>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="title">Event Title</Label>
               <Input
                 type="text"
                 id="title"
@@ -127,22 +128,18 @@ export default function Home() {
               />
             </div>
 
-            <div className="mb-4">
-              <Label htmlFor="description" className="mb-2 block">
-                Description (Optional)
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description (Optional)</Label>
               <Textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
-              ></Textarea>
+              />
             </div>
 
-            <div className="mb-4">
-              <Label htmlFor="blockMinutes" className="mb-2 block">
-                Time Block Duration
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="blockMinutes">Time Block Duration</Label>
               <Select
                 value={String(blockMinutes)}
                 onValueChange={(value) => setBlockMinutes(Number(value))}
@@ -158,17 +155,15 @@ export default function Home() {
               </Select>
             </div>
 
-            <div className="mb-6">
-              <Label htmlFor="timeSlots" className="mb-2 block">
-                Select Dates
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="timeSlots">Select Dates</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant={'outline'}
                     className={cn(
                       'w-full justify-start text-left font-normal',
-                      !selectedDates && 'text-muted-foreground'
+                      !selectedDates.length && 'text-muted-foreground'
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -183,7 +178,7 @@ export default function Home() {
                   <Calendar
                     mode="multiple"
                     selected={selectedDates}
-                    onSelect={(dates) => handleSelectDate(dates as Date | undefined)}
+                    onSelect={(dates) => setSelectedDates(dates || [])}
                     initialFocus
                   />
                   <div className="p-2 border-t">
@@ -202,8 +197,8 @@ export default function Home() {
               </Popover>
             </div>
 
-            <div className="mb-6">
-              <Label htmlFor="selectedTimesInput" className="mb-2 block">
+            <div className="space-y-2">
+              <Label htmlFor="selectedTimesInput">
                 Available Times (Comma-separated, e.g., HH:MM)
               </Label>
               <Textarea
@@ -213,10 +208,10 @@ export default function Home() {
                 rows={3}
                 placeholder="e.g., 09:00, 10:00, 14:30"
                 required
-              ></Textarea>
+              />
             </div>
 
-            {error && <p className="text-red-500 text-xs italic mb-4">{error}</p>}
+            {error && <p className="text-destructive text-xs italic">{error}</p>}
 
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? 'Creating Event...' : 'Create Event'}
@@ -224,6 +219,6 @@ export default function Home() {
           </form>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }

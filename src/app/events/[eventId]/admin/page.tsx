@@ -203,16 +203,16 @@ export default function AdminEventPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
+    <main className="min-h-screen w-full flex flex-col items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-4xl mx-auto mt-8">
         <CardHeader>
           <CardTitle className="text-3xl font-bold text-center">Admin: {eventData.title}</CardTitle>
           {eventData.description && (
-            <p className="text-gray-600 mb-6 text-center">{eventData.description}</p>
+            <p className="text-muted-foreground text-center pt-2">{eventData.description}</p>
           )}
         </CardHeader>
-        <CardContent>
-          <section className="mb-8">
+        <CardContent className="space-y-8">
+          <section>
             <h2 className="text-xl font-semibold mb-3">Public Shareable Link</h2>
             <div className="flex items-center">
               <Input
@@ -228,18 +228,16 @@ export default function AdminEventPage() {
                 Copy
               </Button>
             </div>
-            <Link href={publicLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline mt-2 block">
+            <Link href={publicLink} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline mt-2 block">
               Open Public Page
             </Link>
           </section>
 
-          <section className="mb-8">
+          <section>
             <h2 className="text-xl font-semibold mb-3">Edit Event Details</h2>
-            <form onSubmit={handleUpdateEvent}>
-              <div className="mb-4">
-                <Label htmlFor="editTitle" className="mb-2 block">
-                  Event Title
-                </Label>
+            <form onSubmit={handleUpdateEvent} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="editTitle">Event Title</Label>
                 <Input
                   type="text"
                   id="editTitle"
@@ -249,10 +247,8 @@ export default function AdminEventPage() {
                 />
               </div>
 
-              <div className="mb-4">
-                <Label htmlFor="editDescription" className="mb-2 block">
-                  Description (Optional)
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="editDescription">Description (Optional)</Label>
                 <Textarea
                   id="editDescription"
                   value={editDescription}
@@ -261,10 +257,8 @@ export default function AdminEventPage() {
                 ></Textarea>
               </div>
 
-              <div className="mb-4">
-                <Label htmlFor="editBlockMinutes" className="mb-2 block">
-                  Time Block Duration
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="editBlockMinutes">Time Block Duration</Label>
                 <Select
                   value={String(editBlockMinutes)}
                   onValueChange={(value) => setEditBlockMinutes(Number(value))}
@@ -280,17 +274,15 @@ export default function AdminEventPage() {
                 </Select>
               </div>
 
-              <div className="mb-6">
-                <Label htmlFor="editTimeSlots" className="mb-2 block">
-                  Select Dates
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="editTimeSlots">Select Dates</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant={'outline'}
                       className={cn(
                         'w-full justify-start text-left font-normal',
-                        !editSelectedDates && 'text-muted-foreground'
+                        !editSelectedDates.length && 'text-muted-foreground'
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -305,7 +297,7 @@ export default function AdminEventPage() {
                     <Calendar
                       mode="multiple"
                       selected={editSelectedDates}
-                      onSelect={(dates) => handleSelectEditDate(dates as Date | undefined)}
+                      onSelect={(dates) => setEditSelectedDates(dates || [])}
                       initialFocus
                     />
                     <div className="p-2 border-t">
@@ -324,8 +316,8 @@ export default function AdminEventPage() {
                 </Popover>
               </div>
 
-              <div className="mb-6">
-                <Label htmlFor="editSelectedTimesInput" className="mb-2 block">
+              <div className="space-y-2">
+                <Label htmlFor="editSelectedTimesInput">
                   Available Times (Comma-separated, e.g., HH:MM)
                 </Label>
                 <Textarea
@@ -338,9 +330,9 @@ export default function AdminEventPage() {
                 ></Textarea>
               </div>
 
-              {error && <p className="text-red-500 text-xs italic mb-4">{error}</p>}
+              {error && <p className="text-destructive text-xs italic">{error}</p>}
               {updateSuccess && (
-                <p className="text-green-500 text-xs italic mb-4">Event updated successfully!</p>
+                <p className="text-green-500 text-xs italic">Event updated successfully!</p>
               )}
 
               <Button type="submit" className="w-full" disabled={isUpdatingEvent}>
@@ -357,27 +349,27 @@ export default function AdminEventPage() {
                   const attendees = rsvpSummary[slot];
                   const slotDisplay = format(new Date(slot), 'PPP p');
                   return (
-                    <div key={slot} className="p-4 border rounded-lg shadow-sm bg-gray-50">
+                    <Card key={slot} className="p-4 bg-muted/50">
                       <h3 className="font-semibold mb-2">{slotDisplay}</h3>
                       {attendees && attendees.length > 0 ? (
-                        <ul className="list-disc list-inside text-sm">
+                        <ul className="list-disc list-inside text-sm text-muted-foreground">
                           {attendees.map((name, index) => (
                             <li key={index}>{name}</li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="text-gray-500 text-sm">No RSVPs for this slot.</p>
+                        <p className="text-muted-foreground text-sm">No RSVPs for this slot.</p>
                       )}
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-gray-500">No time slots defined for this event.</p>
+              <p className="text-muted-foreground">No time slots defined for this event.</p>
             )}
           </section>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }

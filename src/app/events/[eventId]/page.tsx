@@ -161,20 +161,18 @@ export default function EventRsvpPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-start justify-center p-4">
+    <main className="min-h-screen w-full flex flex-col items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-2xl mt-8">
         <CardHeader>
           <CardTitle className="text-3xl font-bold text-center">{eventData.title}</CardTitle>
           {eventData.description && (
-            <p className="text-gray-600 mb-6 text-center">{eventData.description}</p>
+            <p className="text-muted-foreground text-center pt-2">{eventData.description}</p>
           )}
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmitRsvp} className="mb-8">
-            <div className="mb-4">
-              <Label htmlFor="respondentName" className="mb-2 block">
-                Your Name
-              </Label>
+          <form onSubmit={handleSubmitRsvp} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="respondentName">Your Name</Label>
               <Input
                 type="text"
                 id="respondentName"
@@ -184,43 +182,45 @@ export default function EventRsvpPage() {
               />
             </div>
 
-            <h2 className="text-xl font-semibold mb-4">Select Available Time Slots</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              {allSlots.length > 0 ? (
-                allSlots.map((slot) => {
-                  const isSelected = selectedSlots.includes(slot);
-                  const isOccupied = occupiedSlotsCount[slot] > 0; // Simplified: just show if anyone took it
-                  const slotDisplay = format(new Date(slot), 'PPP p'); // Format for display
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold">Select Available Time Slots</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {allSlots.length > 0 ? (
+                  allSlots.map((slot) => {
+                    const isSelected = selectedSlots.includes(slot);
+                    const isOccupied = occupiedSlotsCount[slot] > 0;
+                    const slotDisplay = format(new Date(slot), 'PPP p');
 
-                  return (
-                    <Button
-                      key={slot}
-                      type="button"
-                      onClick={() => handleSlotToggle(slot)}
-                      variant={isSelected ? 'default' : 'outline'}
-                      className={`h-auto p-3 text-left justify-start flex-col items-start
-                        ${isOccupied && !isSelected ? 'opacity-60 cursor-not-allowed' : ''}
-                      `}
-                      disabled={isOccupied && !isSelected}
-                    >
-                      <span>{slotDisplay}</span>
-                      <span className="text-xs text-muted-foreground">
-                        ({eventData.block_minutes} min)
-                      </span>
-                      {isOccupied && !isSelected && (
-                        <span className="ml-2 text-sm text-red-500"> (taken)</span>
-                      )}
-                    </Button>
-                  );
-                })
-              ) : (
-                <p className="col-span-full text-gray-500">No time slots available for this event.</p>
-              )}
+                    return (
+                      <Button
+                        key={slot}
+                        type="button"
+                        onClick={() => handleSlotToggle(slot)}
+                        variant={isSelected ? 'default' : 'outline'}
+                        className={`h-auto p-3 text-left justify-start flex-col items-start
+                          ${isOccupied && !isSelected ? 'opacity-60 cursor-not-allowed' : ''}
+                        `}
+                        disabled={isOccupied && !isSelected}
+                      >
+                        <span>{slotDisplay}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({eventData.block_minutes} min)
+                        </span>
+                        {isOccupied && !isSelected && (
+                          <span className="ml-2 text-sm text-destructive"> (taken)</span>
+                        )}
+                      </Button>
+                    );
+                  })
+                ) : (
+                  <p className="col-span-full text-muted-foreground">No time slots available for this event.</p>
+                )}
+              </div>
             </div>
 
-            {error && <p className="text-red-500 text-xs italic mb-4">{error}</p>}
+            {error && <p className="text-destructive text-xs italic">{error}</p>}
             {submitSuccess && (
-              <p className="text-green-500 text-xs italic mb-4">RSVP submitted successfully!</p>
+              <p className="text-green-500 text-xs italic">RSVP submitted successfully!</p>
             )}
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
@@ -228,20 +228,20 @@ export default function EventRsvpPage() {
             </Button>
           </form>
 
-          <h2 className="text-xl font-semibold mt-8 mb-4">Who's attending:</h2>
-          {rsvps.length > 0 ? (
-            <ul className="list-disc pl-5">
-              {rsvps.map((rsvp) => (
-                <li key={rsvp.respondent_token} className="text-gray-700">
-                  {rsvp.name}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-gray-500">No one has RSVP'd yet.</p>
-          )}
+          <div className="mt-8">
+            <h2 className="text-xl font-semibold">Who's attending:</h2>
+            {rsvps.length > 0 ? (
+              <ul className="list-disc pl-5 mt-2 text-muted-foreground">
+                {rsvps.map((rsvp) => (
+                  <li key={rsvp.respondent_token}>{rsvp.name}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-muted-foreground mt-2">No one has RSVP'd yet.</p>
+            )}
+          </div>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }
