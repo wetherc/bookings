@@ -266,8 +266,8 @@ export default function AdminEventPage() {
   });
 
   return (
-    <main className="min-h-screen w-full flex flex-col items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-4xl mx-auto mt-8">
+    <main className="min-h-screen w-full flex flex-col items-center justify-center bg-primary/10 p-4">
+      <Card className="w-full max-w-4xl mx-auto mt-8 shadow-lg">
         <CardHeader>
           <CardTitle className="text-3xl font-bold text-center">Admin: {eventData.title}</CardTitle>
           {eventData.description && (
@@ -328,7 +328,7 @@ export default function AdminEventPage() {
                 </Select>
               </div>
 
-              <div className="p-4 border rounded-lg space-y-4">
+              <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
                 <h3 className="font-semibold text-lg">Propose Time Slots</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -427,11 +427,13 @@ export default function AdminEventPage() {
                     <Card key={slot} className="p-4 bg-muted/50">
                       <h3 className="font-semibold mb-2">{slotDisplay}</h3>
                       {attendees && attendees.length > 0 ? (
-                        <ul className="list-disc list-inside text-sm text-muted-foreground">
+                        <div className="grid grid-cols-2 gap-2 mt-2">
                           {attendees.map((name, index) => (
-                            <li key={index}>{name}</li>
+                            <div key={index} className="p-2 bg-background rounded-md text-center text-sm">
+                              {name}
+                            </div>
                           ))}
-                        </ul>
+                        </div>
                       ) : (
                         <p className="text-muted-foreground text-sm">No RSVPs for this slot.</p>
                       )}

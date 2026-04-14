@@ -161,8 +161,8 @@ export default function EventRsvpPage() {
   });
 
   return (
-    <main className="min-h-screen w-full flex flex-col items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-2xl mt-8">
+    <main className="min-h-screen w-full flex flex-col items-center justify-center bg-primary/10 p-4">
+      <Card className="w-full max-w-2xl mt-8 shadow-lg">
         <CardHeader>
           <CardTitle className="text-3xl font-bold text-center">{eventData.title}</CardTitle>
           {eventData.description && (
@@ -231,11 +231,13 @@ export default function EventRsvpPage() {
           <div className="mt-8">
             <h2 className="text-xl font-semibold">Who's attending:</h2>
             {rsvps.length > 0 ? (
-              <ul className="list-disc pl-5 mt-2 text-muted-foreground">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-2">
                 {rsvps.map((rsvp) => (
-                  <li key={rsvp.respondent_token}>{rsvp.name}</li>
+                  <div key={rsvp.respondent_token} className="p-3 bg-muted rounded-md text-center">
+                    {rsvp.name}
+                  </div>
                 ))}
-              </ul>
+              </div>
             ) : (
               <p className="text-muted-foreground mt-2">No one has RSVP'd yet.</p>
             )}

@@ -127,8 +127,8 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen w-full flex flex-col items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-2xl">
+    <main className="min-h-screen w-full flex flex-col items-center justify-center bg-primary/10 p-4">
+      <Card className="w-full max-w-2xl shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Create a New Event</CardTitle>
           <p className="text-muted-foreground text-center text-sm">
@@ -174,7 +174,7 @@ export default function Home() {
               </Select>
             </div>
 
-            <div className="p-4 border rounded-lg space-y-4">
+            <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
               <h3 className="font-semibold text-lg">Propose Time Slots</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
