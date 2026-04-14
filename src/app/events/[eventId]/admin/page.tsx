@@ -3,6 +3,23 @@
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { CalendarIcon } from '@radix-ui/react-icons';
 
 interface EventData {
   event_id: string;
@@ -37,11 +54,21 @@ export default function AdminEventPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editBlockMinutes, setEditBlockMinutes] = useState(30);
-  const [editTimeSlotsInput, setEditTimeSlotsInput] = useState('');
+  const [editSelectedDates, setEditSelectedDates] = useState<Date[]>([]); // For non-contiguous dates
+  const [editSelectedTimesInput, setEditSelectedTimesInput] = useState('09:00,10:00,11:00,12:00,13:00,14:00,15:00,16:00'); // Comma-separated time strings (e.g., "HH:MM")
   const [isUpdatingEvent, setIsUpdatingEvent] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
 
   const publicLink = typeof window !== 'undefined' ? `${window.location.origin}/events/${eventId}` : '';
+
+  const handleSelectEditDate = (date: Date | undefined) => {
+    if (!date) return;
+    setEditSelectedDates((prev) =>
+      prev.some((d) => d.toDateString() === date.toDateString())
+        ? prev.filter((d) => d.toDateString() !== date.toDateString())
+        : [...prev, date].sort((a, b) => a.getTime() - b.getTime())
+    );
+  };
 
   const fetchEventData = async () => {
     if (!eventId) return;
@@ -60,7 +87,15 @@ export default function AdminEventPage() {
       setEditTitle(data.event.title);
       setEditDescription(data.event.description || '');
       setEditBlockMinutes(data.event.block_minutes);
-      setEditTimeSlotsInput(data.event.time_slots.join(', '));
+      // Convert stored ISO strings back to Date objects for the calendar
+      setEditSelectedDates(data.event.time_slots.map(s => new Date(s)));
+      // Attempt to extract times from the first slot, or use default if none
+      if (data.event.time_slots.length > 0) {
+        const uniqueTimes = Array.from(new Set(
+          data.event.time_slots.map(s => format(new Date(s), 'HH:mm'))
+        )).join(',');
+        setEditSelectedTimesInput(uniqueTimes);
+      }
     } catch (err: any) {
       setError(err.message || 'An error occurred while loading event.');
       console.error('Fetch event error:', err);
@@ -86,10 +121,29 @@ export default function AdminEventPage() {
     }
 
     try {
-      const time_slots = editTimeSlotsInput
+      if (editSelectedDates.length === 0) {
+        throw new Error('Please select at least one date.');
+      }
+
+      const times = editSelectedTimesInput
         .split(',')
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
+        .map((s) => s.trim())
+        .filter((s) => s.match(/^([01]\d|2[0-3]):([0-5]\d)$/));
+
+      if (times.length === 0) {
+        throw new Error('Please enter valid times (e.g., HH:MM).');
+      }
+
+      const updated_time_slots: string[] = [];
+      editSelectedDates.forEach((date) => {
+        times.forEach((time) => {
+          const [hours, minutes] = time.split(':').map(Number);
+          const dateTime = new Date(date);
+          dateTime.setHours(hours, minutes, 0, 0);
+          updated_time_slots.push(dateTime.toISOString());
+        });
+      });
+      updated_time_slots.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
       const response = await fetch(`/api/events/${eventId}`, {
         method: 'PUT',
@@ -101,7 +155,7 @@ export default function AdminEventPage() {
           title: editTitle,
           description: editDescription,
           block_minutes: editBlockMinutes,
-          time_slots: time_slots,
+          time_slots: updated_time_slots,
         }),
       });
 
@@ -111,8 +165,7 @@ export default function AdminEventPage() {
       }
 
       setUpdateSuccess(true);
-      // Re-fetch event data to reflect changes
-      fetchEventData();
+      fetchEventData(); // Re-fetch event data to reflect changes
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred during event update.');
       console.error('Event update error:', err);
@@ -151,162 +204,180 @@ export default function AdminEventPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-4xl mx-auto mt-8">
-        <h1 className="text-3xl font-bold mb-4 text-center">Admin: {eventData.title}</h1>
-        {eventData.description && (
-          <p className="text-gray-600 mb-6 text-center">{eventData.description}</p>
-        )}
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-3">Public Shareable Link</h2>
-          <div className="flex items-center">
-            <input
-              type="text"
-              readOnly
-              value={publicLink}
-              className="flex-grow p-2 border rounded-l-md bg-gray-50 text-gray-700"
-            />
-            <button
-              onClick={() => navigator.clipboard.writeText(publicLink)}
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-r-md"
-            >
-              Copy
-            </button>
-          </div>
-          <Link href={publicLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline mt-2 block">
-            Open Public Page
-          </Link>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-3">Edit Event Details</h2>
-          <form onSubmit={handleUpdateEvent}>
-            <div className="mb-4">
-              <label htmlFor="editTitle" className="block text-gray-700 text-sm font-bold mb-2">
-                Event Title
-              </label>
-              <input
-                type="text"
-                id="editTitle"
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="mb-4">
-              <label htmlFor="editDescription" className="block text-gray-700 text-sm font-bold mb-2">
-                Description (Optional)
-              </label>
-              <textarea
-                id="editDescription"
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                rows={3}
-              ></textarea>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-gray-700 text-sm font-bold mb-2">
-                Time Block Duration
-              </label>
-              <div className="flex space-x-4">
-                <label className="inline-flex items-center">
-                  <input
-                    type="radio"
-                    className="form-radio"
-                    name="editBlockMinutes"
-                    value={15}
-                    checked={editBlockMinutes === 15}
-                    onChange={() => setEditBlockMinutes(15)}
-                  />
-                  <span className="ml-2">15 mins</span>
-                </label>
-                <label className="inline-flex items-center">
-                  <input
-                    type="radio"
-                    className="form-radio"
-                    name="editBlockMinutes"
-                    value={30}
-                    checked={editBlockMinutes === 30}
-                    onChange={() => setEditBlockMinutes(30)}
-                  />
-                  <span className="ml-2">30 mins</span>
-                </label>
-                <label className="inline-flex items-center">
-                  <input
-                    type="radio"
-                    className="form-radio"
-                    name="editBlockMinutes"
-                    value={60}
-                    checked={editBlockMinutes === 60}
-                    onChange={() => setEditBlockMinutes(60)}
-                  />
-                  <span className="ml-2">60 mins</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <label htmlFor="editTimeSlotsInput" className="block text-gray-700 text-sm font-bold mb-2">
-                Time Slots (Comma-separated ISO Date-Time Strings)
-              </label>
-              <textarea
-                id="editTimeSlotsInput"
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                value={editTimeSlotsInput}
-                onChange={(e) => setEditTimeSlotsInput(e.target.value)}
-                rows={5}
-                placeholder="e.g., 2024-05-01T10:00:00, 2024-05-01T11:00:00"
-                required
-              ></textarea>
-            </div>
-
-            {error && <p className="text-red-500 text-xs italic mb-4">{error}</p>}
-            {updateSuccess && (
-              <p className="text-green-500 text-xs italic mb-4">Event updated successfully!</p>
-            )}
-
-            <button
-              type="submit"
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
-              disabled={isUpdatingEvent}
-            >
-              {isUpdatingEvent ? 'Updating Event...' : 'Update Event'}
-            </button>
-          </form>
-        </section>
-
-        <section>
-          <h2 className="text-xl font-semibold mb-3">RSVP Summary</h2>
-          {allTimeSlots.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {allTimeSlots.map(slot => {
-                const attendees = rsvpSummary[slot];
-                const slotDisplay = new Date(slot).toLocaleString();
-                return (
-                  <div key={slot} className="p-4 border rounded-lg shadow-sm bg-gray-50">
-                    <h3 className="font-semibold mb-2">{slotDisplay}</h3>
-                    {attendees && attendees.length > 0 ? (
-                      <ul className="list-disc list-inside text-sm">
-                        {attendees.map((name, index) => (
-                          <li key={index}>{name}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-gray-500 text-sm">No RSVPs for this slot.</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-gray-500">No time slots defined for this event.</p>
+      <Card className="w-full max-w-4xl mx-auto mt-8">
+        <CardHeader>
+          <CardTitle className="text-3xl font-bold text-center">Admin: {eventData.title}</CardTitle>
+          {eventData.description && (
+            <p className="text-gray-600 mb-6 text-center">{eventData.description}</p>
           )}
-        </section>
-      </div>
+        </CardHeader>
+        <CardContent>
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold mb-3">Public Shareable Link</h2>
+            <div className="flex items-center">
+              <Input
+                type="text"
+                readOnly
+                value={publicLink}
+                className="flex-grow p-2"
+              />
+              <Button
+                onClick={() => navigator.clipboard.writeText(publicLink)}
+                className="ml-2"
+              >
+                Copy
+              </Button>
+            </div>
+            <Link href={publicLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline mt-2 block">
+              Open Public Page
+            </Link>
+          </section>
+
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold mb-3">Edit Event Details</h2>
+            <form onSubmit={handleUpdateEvent}>
+              <div className="mb-4">
+                <Label htmlFor="editTitle" className="mb-2 block">
+                  Event Title
+                </Label>
+                <Input
+                  type="text"
+                  id="editTitle"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="mb-4">
+                <Label htmlFor="editDescription" className="mb-2 block">
+                  Description (Optional)
+                </Label>
+                <Textarea
+                  id="editDescription"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={3}
+                ></Textarea>
+              </div>
+
+              <div className="mb-4">
+                <Label htmlFor="editBlockMinutes" className="mb-2 block">
+                  Time Block Duration
+                </Label>
+                <Select
+                  value={String(editBlockMinutes)}
+                  onValueChange={(value) => setEditBlockMinutes(Number(value))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select duration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15">15 Minutes</SelectItem>
+                    <SelectItem value="30">30 Minutes</SelectItem>
+                    <SelectItem value="60">60 Minutes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="mb-6">
+                <Label htmlFor="editTimeSlots" className="mb-2 block">
+                  Select Dates
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={'outline'}
+                      className={cn(
+                        'w-full justify-start text-left font-normal',
+                        !editSelectedDates && 'text-muted-foreground'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editSelectedDates.length > 0 ? (
+                        <span>{`${editSelectedDates.length} date(s) selected`}</span>
+                      ) : (
+                        <span>Pick dates</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="multiple"
+                      selected={editSelectedDates}
+                      onSelect={(dates) => handleSelectEditDate(dates as Date | undefined)}
+                      initialFocus
+                    />
+                    <div className="p-2 border-t">
+                      <h4 className="text-sm font-semibold mb-1">Selected Dates:</h4>
+                      {editSelectedDates.length > 0 ? (
+                        <ul className="text-sm">
+                          {editSelectedDates.map((date, index) => (
+                            <li key={index}>{format(date, 'PPP')}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No dates selected.</p>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="mb-6">
+                <Label htmlFor="editSelectedTimesInput" className="mb-2 block">
+                  Available Times (Comma-separated, e.g., HH:MM)
+                </Label>
+                <Textarea
+                  id="editSelectedTimesInput"
+                  value={editSelectedTimesInput}
+                  onChange={(e) => setEditSelectedTimesInput(e.target.value)}
+                  rows={3}
+                  placeholder="e.g., 09:00, 10:00, 14:30"
+                  required
+                ></Textarea>
+              </div>
+
+              {error && <p className="text-red-500 text-xs italic mb-4">{error}</p>}
+              {updateSuccess && (
+                <p className="text-green-500 text-xs italic mb-4">Event updated successfully!</p>
+              )}
+
+              <Button type="submit" className="w-full" disabled={isUpdatingEvent}>
+                {isUpdatingEvent ? 'Updating Event...' : 'Update Event'}
+              </Button>
+            </form>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-3">RSVP Summary</h2>
+            {allTimeSlots.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {allTimeSlots.map(slot => {
+                  const attendees = rsvpSummary[slot];
+                  const slotDisplay = format(new Date(slot), 'PPP p');
+                  return (
+                    <div key={slot} className="p-4 border rounded-lg shadow-sm bg-gray-50">
+                      <h3 className="font-semibold mb-2">{slotDisplay}</h3>
+                      {attendees && attendees.length > 0 ? (
+                        <ul className="list-disc list-inside text-sm">
+                          {attendees.map((name, index) => (
+                            <li key={index}>{name}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-gray-500 text-sm">No RSVPs for this slot.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-gray-500">No time slots defined for this event.</p>
+            )}
+          </section>
+        </CardContent>
+      </Card>
     </div>
   );
 }

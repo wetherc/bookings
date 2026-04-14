@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { nanoid } from 'nanoid'; // For new respondent tokens
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { format } from 'date-fns'; // For formatting dates
 
 interface EventData {
   event_id: string;
@@ -157,89 +162,86 @@ export default function EventRsvpPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-start justify-center p-4">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-2xl mt-8">
-        <h1 className="text-3xl font-bold mb-4 text-center">{eventData.title}</h1>
-        {eventData.description && (
-          <p className="text-gray-600 mb-6 text-center">{eventData.description}</p>
-        )}
-
-        <form onSubmit={handleSubmitRsvp} className="mb-8">
-          <div className="mb-4">
-            <label htmlFor="respondentName" className="block text-gray-700 text-sm font-bold mb-2">
-              Your Name
-            </label>
-            <input
-              type="text"
-              id="respondentName"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              value={respondentName}
-              onChange={(e) => setRespondentName(e.target.value)}
-              required
-            />
-          </div>
-
-          <h2 className="text-xl font-semibold mb-4">Select Available Time Slots</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            {allSlots.length > 0 ? (
-              allSlots.map((slot) => {
-                const isSelected = selectedSlots.includes(slot);
-                const isOccupied = occupiedSlotsCount[slot] > 0; // Simplified: just show if anyone took it
-                const slotDisplay = new Date(slot).toLocaleString(); // Format for display
-
-                return (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() => handleSlotToggle(slot)}
-                    className={`p-3 rounded-lg text-left transition-colors duration-200
-                      ${isSelected
-                        ? 'bg-blue-500 text-white shadow-lg'
-                        : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                      }
-                      ${isOccupied && !isSelected ? 'opacity-60 cursor-not-allowed' : ''}
-                    `}
-                    disabled={isOccupied && !isSelected}
-                  >
-                    {slotDisplay} ({eventData.block_minutes} min)
-                    {isOccupied && !isSelected && (
-                      <span className="ml-2 text-sm"> (taken)</span>
-                    )}
-                  </button>
-                );
-              })
-            ) : (
-              <p className="col-span-full text-gray-500">No time slots available for this event.</p>
-            )}
-          </div>
-
-          {error && <p className="text-red-500 text-xs italic mb-4">{error}</p>}
-          {submitSuccess && (
-            <p className="text-green-500 text-xs italic mb-4">RSVP submitted successfully!</p>
+      <Card className="w-full max-w-2xl mt-8">
+        <CardHeader>
+          <CardTitle className="text-3xl font-bold text-center">{eventData.title}</CardTitle>
+          {eventData.description && (
+            <p className="text-gray-600 mb-6 text-center">{eventData.description}</p>
           )}
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmitRsvp} className="mb-8">
+            <div className="mb-4">
+              <Label htmlFor="respondentName" className="mb-2 block">
+                Your Name
+              </Label>
+              <Input
+                type="text"
+                id="respondentName"
+                value={respondentName}
+                onChange={(e) => setRespondentName(e.target.value)}
+                required
+              />
+            </div>
 
-          <button
-            type="submit"
-            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Submitting...' : 'Submit Availability'}
-          </button>
-        </form>
+            <h2 className="text-xl font-semibold mb-4">Select Available Time Slots</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              {allSlots.length > 0 ? (
+                allSlots.map((slot) => {
+                  const isSelected = selectedSlots.includes(slot);
+                  const isOccupied = occupiedSlotsCount[slot] > 0; // Simplified: just show if anyone took it
+                  const slotDisplay = format(new Date(slot), 'PPP p'); // Format for display
 
-        {/* Display existing RSVPs (simplified for public view) */}
-        <h2 className="text-xl font-semibold mt-8 mb-4">Who's attending:</h2>
-        {rsvps.length > 0 ? (
-          <ul className="list-disc pl-5">
-            {rsvps.map((rsvp) => (
-              <li key={rsvp.respondent_token} className="text-gray-700">
-                {rsvp.name}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-500">No one has RSVP'd yet.</p>
-        )}
-      </div>
+                  return (
+                    <Button
+                      key={slot}
+                      type="button"
+                      onClick={() => handleSlotToggle(slot)}
+                      variant={isSelected ? 'default' : 'outline'}
+                      className={`h-auto p-3 text-left justify-start flex-col items-start
+                        ${isOccupied && !isSelected ? 'opacity-60 cursor-not-allowed' : ''}
+                      `}
+                      disabled={isOccupied && !isSelected}
+                    >
+                      <span>{slotDisplay}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({eventData.block_minutes} min)
+                      </span>
+                      {isOccupied && !isSelected && (
+                        <span className="ml-2 text-sm text-red-500"> (taken)</span>
+                      )}
+                    </Button>
+                  );
+                })
+              ) : (
+                <p className="col-span-full text-gray-500">No time slots available for this event.</p>
+              )}
+            </div>
+
+            {error && <p className="text-red-500 text-xs italic mb-4">{error}</p>}
+            {submitSuccess && (
+              <p className="text-green-500 text-xs italic mb-4">RSVP submitted successfully!</p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? 'Submitting...' : 'Submit Availability'}
+            </Button>
+          </form>
+
+          <h2 className="text-xl font-semibold mt-8 mb-4">Who's attending:</h2>
+          {rsvps.length > 0 ? (
+            <ul className="list-disc pl-5">
+              {rsvps.map((rsvp) => (
+                <li key={rsvp.respondent_token} className="text-gray-700">
+                  {rsvp.name}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-500">No one has RSVP'd yet.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
