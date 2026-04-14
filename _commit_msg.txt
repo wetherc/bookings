@@ -1,6 +1,7 @@
-feat(db): Setup Turso client and schema initialization
+feat(api): Implement POST /api/events to create new events
 
-- Installed `@libsql/client` for Turso database interaction.
-- Created `src/lib/db/schema.ts` with SQL `CREATE TABLE` statements.
-- Developed `src/lib/db/client.ts` for database connection and schema initialization, handling multiple SQL statements.
-- Added `db:init` script to `package.json` and configured it to load environment variables using `dotenv`.
+- Implemented the Next.js Route Handler for `POST /api/events`.
+- Generates unique `event_id` and `admin_token` using `nanoid`.
+- Inserts event details into the Turso `events` table.
+- Stores `time_slots` as a JSON string.
+- Returns `event_id` and `admin_token` upon successful creation.
