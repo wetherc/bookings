@@ -1,7 +1,8 @@
-feat(api): Implement POST /api/events to create new events
+feat(api): Implement GET /api/events/[eventId] to fetch event details and RSVPs
 
-- Implemented the Next.js Route Handler for `POST /api/events`.
-- Generates unique `event_id` and `admin_token` using `nanoid`.
-- Inserts event details into the Turso `events` table.
-- Stores `time_slots` as a JSON string.
-- Returns `event_id` and `admin_token` upon successful creation.
+- Implemented the Next.js Route Handler for `GET /api/events/[eventId]`.
+- Fetches event details from the Turso `events` table.
+- Fetches all associated RSVPs from the `rsvps` table.
+- Handles JSON parsing for `time_slots` and `selected_slots`.
+- Returns combined event and RSVP data.
+- Includes 404 error handling for non-existent events.
