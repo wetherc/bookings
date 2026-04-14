@@ -128,7 +128,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen w-full flex flex-col items-center justify-center bg-primary/10 p-4">
-      <Card className="w-full max-w-2xl shadow-lg">
+      <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Create a New Event</CardTitle>
           <p className="text-muted-foreground text-center text-sm">
