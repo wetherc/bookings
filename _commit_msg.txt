@@ -1,8 +1,9 @@
-feat(frontend): Implement public RSVP page for events
+feat(frontend): Implement admin view page for events
 
-- Created `src/app/events/[eventId]/page.tsx` to display event details and allow RSVPs.
-- Fetches event and RSVP data using `GET /api/events/[eventId]`.
-- Implements UI for name input and time slot selection.
-- Stores/retrieves `respondent_token` in `localStorage` for returning users.
-- Submits RSVP data via `POST /api/rsvps` endpoint.
-- Displays basic RSVP list and loading/error states.
+- Created `src/app/events/[eventId]/admin/page.tsx`.
+- Fetches event details and all RSVPs using `GET /api/events/[eventId]`.
+- Extracts `admin_token` from URL for authorization.
+- Displays a shareable public link with copy functionality.
+- Provides an editable form for event title, description, block minutes, and time slots.
+- Handles event updates via `PUT /api/events/[eventId]`.
+- Visualizes RSVP summary by time slot, showing attendees for each.
