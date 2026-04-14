@@ -1,7 +1,7 @@
-feat(api): Implement POST /api/rsvps to submit/update RSVPs
+feat(frontend): Implement event creation form on homepage
 
-- Implemented the Next.js Route Handler for `POST /api/rsvps`.
-- Generates `respondent_token` if not provided.
-- Uses `INSERT OR REPLACE` for upsert functionality in the `rsvps` table.
-- Stores `selected_slots` as a JSON string.
-- Returns the `respondent_token` for client-side tracking.
+- Replaced default content of `src/app/page.tsx` with an event creation form.
+- Form includes fields for title, description, block duration, and time slots.
+- Uses `useState` for form state and `useRouter` for navigation.
+- Handles form submission by calling `POST /api/events` endpoint.
+- Redirects to the admin page upon successful event creation.
