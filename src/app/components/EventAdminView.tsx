@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { CopyToClipboardButton } from "./CopyToClipboardButton";
 
 const formatTimePart = (value: number) => String(value).padStart(2, "0");
 
@@ -233,21 +234,30 @@ export function EventAdminView({
             This is your secret admin link. Keep it safe! You'll need it to see
             this page again.
           </p>
-          <input
-            type="text"
-            readOnly
-            value={adminUrl}
-            style={{ width: "100%" }}
-          />
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <input
+              type="text"
+              readOnly
+              value={adminUrl}
+              style={{ flexGrow: 1, marginRight: "0.5rem" }}
+            />
+            <CopyToClipboardButton
+              textToCopy={adminUrl}
+              buttonText="Copy URL"
+            />
+          </div>
         </div>
         <div>
           <p>Share this link with your event participants for them to RSVP.</p>
-          <input
-            type="text"
-            readOnly
-            value={rsvpUrl}
-            style={{ width: "100%" }}
-          />
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <input
+              type="text"
+              readOnly
+              value={rsvpUrl}
+              style={{ flexGrow: 1, marginRight: "0.5rem" }}
+            />
+            <CopyToClipboardButton textToCopy={rsvpUrl} buttonText="Copy URL" />
+          </div>
         </div>
       </fieldset>
 

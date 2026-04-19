@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Alert } from "./Alert"; // Import the Alert component
+import { CopyToClipboardButton } from "./CopyToClipboardButton";
 
 const formatTimePart = (value: number) => String(value).padStart(2, '0');
 
@@ -409,7 +410,10 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
           {currentRespondentToken && (
             <div style={{ marginTop: '1rem' }}>
               <p>This is your personal RSVP link. <strong>Save it!</strong> You will need this link to view or edit your availability later.</p>
-              <input type="text" readOnly value={rsvpLink} style={{ width: '100%' }} />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input type="text" readOnly value={rsvpLink} style={{ width: '100%' }} />
+                <CopyToClipboardButton textToCopy={rsvpLink} buttonText="Copy URL" className="copy-button" />
+              </div>
             </div>
           )}
         </fieldset>
