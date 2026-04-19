@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CreateEventForm } from "./components/CreateEventForm";
 import { EventAdminView } from "./components/EventAdminView";
+import { EventRsvpView } from "./components/EventRsvpView"; // Import the new component
 
 const TABS_STORAGE_KEY = 'bookings_open_tabs';
 
@@ -12,11 +13,11 @@ interface Tab {
   title: string;
   type: 'create' | 'rsvp' | 'admin';
   token?: string; // Only for admin tabs
+  respondentToken?: string; // Only for RSVP tabs
 }
 
 const defaultTabs: Tab[] = [
   { id: 'create', title: 'Create new event', type: 'create' },
-  { id: 'rsvp', title: 'RSVP / Edit', type: 'rsvp' },
 ];
 
 function HomePage() {
@@ -43,6 +44,7 @@ function HomePage() {
 
     const eventId = searchParams.get('eventId');
     const adminToken = searchParams.get('adminToken');
+    const respondentToken = searchParams.get('respondentToken'); // Get respondentToken
     
     if (eventId && adminToken) {
       const existingTab = initialTabs.find(tab => tab.id === eventId);
@@ -57,6 +59,22 @@ function HomePage() {
       }
       setActiveTabId(eventId);
       router.replace('/', { shallow: true }); // Clean up URL
+    } else if (eventId) { // Handle RSVP links (with or without respondentToken)
+        const existingTab = initialTabs.find(tab => tab.id === eventId);
+        if (!existingTab) {
+            const newTab: Tab = {
+                id: eventId,
+                title: `RSVP: ${eventId.substring(0, 8)}...`, // Temporary title
+                type: 'rsvp',
+                respondentToken: respondentToken || undefined, // Store respondentToken
+            };
+            initialTabs.push(newTab);
+        } else if (respondentToken && existingTab.type === 'rsvp' && !existingTab.respondentToken) {
+            // Update existing RSVP tab with respondentToken if it's new
+            existingTab.respondentToken = respondentToken;
+        }
+        setActiveTabId(eventId);
+        router.replace('/', { shallow: true }); // Clean up URL
     }
     
     setTabs(initialTabs);
@@ -98,9 +116,9 @@ function HomePage() {
     setTabs(newTabs);
   };
 
-  const handleTitleLoaded = (eventId: string, newTitle: string) => {
+  const handleTitleLoaded = (eventId: string, newTitle: string, type: 'admin' | 'rsvp') => {
     setTabs(prevTabs => prevTabs.map(tab => 
-      tab.id === eventId ? { ...tab, title: newTitle } : tab
+      tab.id === eventId ? { ...tab, title: newTitle, type: type } : tab
     ));
   };
 
@@ -143,7 +161,7 @@ function HomePage() {
                 onClick={() => setActiveTabId(tab.id)}
               >
                 {truncate(tab.title, 20)}
-                {tab.type === 'admin' && (
+                {(tab.type === 'admin' || tab.type === 'rsvp') && (
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
@@ -171,16 +189,17 @@ function HomePage() {
           >
             {activeTab?.type === 'create' && <CreateEventForm onEventCreated={handleEventCreated} />}
             {activeTab?.type === 'rsvp' && (
-              <div>
-                <h2>RSVP / Edit</h2>
-                {/* Content for RSVP tab will go here */}
-              </div>
+              <EventRsvpView 
+                eventId={activeTab.id} 
+                respondentToken={activeTab.respondentToken}
+                onTitleLoaded={(newTitle, type) => handleTitleLoaded(activeTab.id, newTitle, type)}
+              />
             )}
             {activeTab?.type === 'admin' && activeTab.token && (
               <EventAdminView 
                 eventId={activeTab.id} 
                 token={activeTab.token}
-                onTitleLoaded={(newTitle) => handleTitleLoaded(activeTab.id, newTitle)}
+                onTitleLoaded={(newTitle) => handleTitleLoaded(activeTab.id, newTitle, 'admin')}
               />
             )}
           </div>

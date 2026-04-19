@@ -19,13 +19,15 @@ export default async function EventsCatchAllPage({ params, searchParams }: Event
   const eventId = slug[0];
   let redirectUrl = `/?eventId=${eventId}`;
 
-  // Check for admin links, e.g., /events/EVENT_ID/admin?token=TOKEN
+  // Handle admin links: /events/EVENT_ID/admin?token=ADMIN_TOKEN
   if (slug[1] === 'admin' && resolvedSearchParams.token) {
     redirectUrl += `&adminToken=${resolvedSearchParams.token}`;
+  } 
+  // Handle RSVP links: /events/EVENT_ID?token=RESPONDENT_TOKEN (for editing)
+  // or /events/EVENT_ID (for new RSVP)
+  else if (slug.length === 1 && resolvedSearchParams.token) {
+    redirectUrl += `&respondentToken=${resolvedSearchParams.token}`;
   }
-  
-  // Later, we can add logic for RSVP links, e.g., /events/EVENT_ID
-  // For now, it just opens a tab for that event.
 
   redirect(redirectUrl);
 }
