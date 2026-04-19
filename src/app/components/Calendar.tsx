@@ -52,7 +52,7 @@ export function Calendar({ onDateSelect, initialDate, minDate }: CalendarProps) 
     }
 
     const rows = [];
-    let day = new Date(startDate);
+    const day = new Date(startDate);
 
     const minDateNormalized = minDate ? new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate()) : null;
 

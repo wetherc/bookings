@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 const formatTimePart = (value: number) => String(value).padStart(2, '0');
 
@@ -20,6 +20,60 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
   const [rsvpSaved, setRsvpSaved] = useState(false);
   const [currentRespondentToken, setCurrentRespondentToken] = useState<string | undefined>(initialRespondentToken);
 
+  const { dates, timeSlots, dateToTimeMap } = useMemo(() => {
+    if (!eventData || !Array.isArray(eventData.time_slots)) {
+      return { dates: [], timeSlots: [], dateToTimeMap: new Map() };
+    }
+
+    const allPossibleSlots: string[] = [];
+    eventData.time_slots.forEach((timeBlock: any) => {
+      const start = new Date(timeBlock.startDate);
+      start.setUTCHours(0, 0, 0, 0);
+
+      const end = new Date(timeBlock.endDate);
+      end.setUTCHours(0, 0, 0, 0);
+      
+      // Loop through each day in UTC using a standard while loop
+      const currentDate = new Date(start);
+      while (currentDate <= end) {
+        const currentSlotStart = new Date(currentDate.getTime());
+        currentSlotStart.setUTCHours(timeBlock.startTime.hour, timeBlock.startTime.minute, 0, 0);
+
+        const currentSlotEnd = new Date(currentDate.getTime());
+        currentSlotEnd.setUTCHours(timeBlock.endTime.hour, timeBlock.endTime.minute, 0, 0);
+        
+        const currentBlock = new Date(currentSlotStart.getTime());
+        while (currentBlock < currentSlotEnd) {
+          allPossibleSlots.push(currentBlock.toISOString());
+          currentBlock.setUTCMinutes(currentBlock.getUTCMinutes() + eventData.block_minutes);
+        }
+        
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      }
+    });
+
+    const dateToTimeMap = new Map<string, Set<string>>();
+    const timeSet = new Set<string>();
+
+    allPossibleSlots.forEach(isoString => {
+      const date = new Date(isoString);
+      const dateKey = `${date.getUTCFullYear()}-${formatTimePart(date.getUTCMonth() + 1)}-${formatTimePart(date.getUTCDate())}`;
+      const timeKey = `${formatTimePart(date.getUTCHours())}:${formatTimePart(date.getUTCMinutes())}`;
+      
+      if (!dateToTimeMap.has(dateKey)) {
+        dateToTimeMap.set(dateKey, new Set());
+      }
+      dateToTimeMap.get(dateKey)!.add(timeKey);
+      timeSet.add(timeKey);
+    });
+
+    return {
+      dates: Array.from(dateToTimeMap.keys()).sort(),
+      timeSlots: Array.from(timeSet).sort(),
+      dateToTimeMap,
+    };
+  }, [eventData]);
+
   useEffect(() => {
     async function fetchData() {
       setIsLoading(true);
@@ -27,21 +81,23 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
       setRsvpSaved(false);
 
       try {
-        // Fetch event details
-        const eventRes = await fetch(`/api/events/${eventId}`); // No token for public view
+        const eventRes = await fetch(`/api/events/${eventId}`);
         if (!eventRes.ok) {
           const errorData = await eventRes.json();
           throw new Error(errorData.message || `Error fetching event: ${eventRes.status}`);
         }
         const fetchedEventData = await eventRes.json();
-        setEventData(fetchedEventData.event);
-        onTitleLoaded(fetchedEventData.event.title, 'rsvp');
+        
+        if (fetchedEventData && fetchedEventData.event) {
+          setEventData(fetchedEventData.event);
+          onTitleLoaded(fetchedEventData.event.title, 'rsvp');
+        } else {
+          throw new Error("Event data is missing in API response.");
+        }
 
-        // If currentRespondentToken exists, fetch existing RSVP
         if (currentRespondentToken) {
           const rsvpRes = await fetch(`/api/rsvps/${eventId}?token=${currentRespondentToken}`);
           if (!rsvpRes.ok) {
-            // If RSVP not found for token, proceed without pre-filling
             if (rsvpRes.status !== 404) {
               const errorData = await rsvpRes.json();
               throw new Error(errorData.message || `Error fetching RSVP: ${rsvpRes.status}`);
@@ -50,17 +106,15 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
             const fetchedRsvpData = await rsvpRes.json();
             setRespondentName(fetchedRsvpData.name);
             setSelectedSlots(fetchedRsvpData.selected_slots);
-            setRsvpSaved(true); // Pre-fill implies it's already saved
+            setRsvpSaved(true);
           }
         }
-
       } catch (e) {
         setError(e instanceof Error ? e.message : "An unknown error occurred.");
       } finally {
         setIsLoading(false);
       }
     }
-
     fetchData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, currentRespondentToken]);
@@ -69,6 +123,26 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
     setSelectedSlots(prev =>
       prev.includes(slot) ? prev.filter(s => s !== slot) : [...prev, slot]
     );
+  };
+
+  const handleSelectAllForDate = (date: string) => {
+    const slotsForDate = dateToTimeMap.get(date);
+    if (!slotsForDate) return;
+
+    const isoSlotsForDate = Array.from(slotsForDate).map(time => {
+      const [hour, minute] = time.split(':').map(Number);
+      const dateObj = new Date(`${date}T00:00:00Z`);
+      dateObj.setUTCHours(hour, minute);
+      return dateObj.toISOString();
+    });
+
+    const allSelected = isoSlotsForDate.every(slot => selectedSlots.includes(slot));
+
+    if (allSelected) {
+      setSelectedSlots(prev => prev.filter(s => !isoSlotsForDate.includes(s)));
+    } else {
+      setSelectedSlots(prev => [...new Set([...prev, ...isoSlotsForDate])]);
+    }
   };
 
   const handleSubmitRsvp = async () => {
@@ -110,8 +184,6 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
       const responseData = await res.json();
       if (responseData.respondent_token && !currentRespondentToken) {
         setCurrentRespondentToken(responseData.respondent_token);
-        // This is where you would ideally update the parent tab state
-        // to persist the respondentToken in the tab.
       }
       setRsvpSaved(true);
 
@@ -133,28 +205,6 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
   if (!eventData) {
     return <div>Event not found or cannot be RSVP'd to.</div>;
   }
-
-  // Generate all possible time slots for the event
-  const allPossibleSlots: string[] = [];
-  eventData.time_slots.forEach((timeBlock: any) => {
-    const start = new Date(timeBlock.startDate);
-    const end = new Date(timeBlock.endDate);
-    
-    // Iterate over each day in the range
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const currentSlotStart = new Date(d);
-      currentSlotStart.setHours(timeBlock.startTime.hour, timeBlock.startTime.minute, 0, 0);
-
-      const currentSlotEnd = new Date(d);
-      currentSlotEnd.setHours(timeBlock.endTime.hour, timeBlock.endTime.minute, 0, 0);
-
-      let currentBlock = new Date(currentSlotStart);
-      while (currentBlock < currentSlotEnd) {
-        allPossibleSlots.push(currentBlock.toISOString());
-        currentBlock.setMinutes(currentBlock.getMinutes() + eventData.block_minutes);
-      }
-    }
-  });
 
   const rsvpLink = currentRespondentToken 
     ? `${window.location.origin}/events/${eventId}?token=${currentRespondentToken}`
@@ -183,24 +233,66 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
             />
           </div>
 
-          <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
-            <div style={{ paddingTop: '0.5rem' }}>
-              {allPossibleSlots.map(slot => (
-                <div key={slot} style={{ display: 'flex', alignItems: 'center', marginBottom: '0.25rem' }}>
-                  <input 
-                    type="checkbox" 
-                    id={slot} 
-                    checked={selectedSlots.includes(slot)} 
-                    onChange={() => handleSlotSelection(slot)} 
-                    disabled={isSubmitting}
-                    style={{ marginRight: '0.5rem' }}
-                  />
-                  <label htmlFor={slot}>
-                    {new Date(slot).toLocaleString()}
-                  </label>
-                </div>
-              ))}
-            </div>
+          <div style={{ overflow: 'auto' }}>
+            <table className="interactive">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  {timeSlots.map(time => <th key={time}>{time}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {dates.map(date => {
+                  const allSlotsForDate = Array.from(dateToTimeMap.get(date) || []).map(time => {
+                    const [hour, minute] = time.split(':').map(Number);
+                    const dateObj = new Date(`${date}T00:00:00Z`);
+                    dateObj.setUTCHours(hour, minute);
+                    return dateObj.toISOString();
+                  });
+                  const areAllSelected = allSlotsForDate.length > 0 && allSlotsForDate.every(slot => selectedSlots.includes(slot));
+
+                  return (
+                    <tr key={date}>
+                      <td style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <input
+                          type="checkbox"
+                          onChange={() => handleSelectAllForDate(date)}
+                          checked={areAllSelected}
+                          disabled={isSubmitting || allSlotsForDate.length === 0}
+                          style={{ margin: 0 }}
+                        />
+                        {new Date(date + 'T12:00:00Z').toLocaleDateString(undefined, { timeZone: 'UTC' })}
+                      </td>
+                      {timeSlots.map(time => {
+                        const slotExists = dateToTimeMap.get(date)?.has(time);
+                        
+                        let isoString = '';
+                        if (slotExists) {
+                          const [hour, minute] = time.split(':').map(Number);
+                          const dateObj = new Date(`${date}T00:00:00Z`);
+                          dateObj.setUTCHours(hour, minute);
+                          isoString = dateObj.toISOString();
+                        }
+
+                        return (
+                          <td key={time} style={{ textAlign: 'center' }}>
+                            {slotExists && (
+                              <input
+                                type="checkbox"
+                                id={isoString}
+                                checked={selectedSlots.includes(isoString)}
+                                onChange={() => handleSlotSelection(isoString)}
+                                disabled={isSubmitting}
+                              />
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </fieldset>
       ) : (
