@@ -327,7 +327,10 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
             {selectedSlots.length > 0 ? (
               <ul>
                 {selectedSlots.map(slot => (
-                  <li key={slot}>{new Date(slot).toLocaleString()}</li>
+                  <li key={slot}>
+                      <span className="datetime-part">{new Date(slot).toLocaleDateString()}</span>
+                      <span className="datetime-part">{new Date(slot).toLocaleTimeString()}</span>
+                    </li>
                 ))}
               </ul>
             ) : (

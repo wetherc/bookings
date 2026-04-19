@@ -129,17 +129,8 @@ function HomePage() {
   }
 
   return (
-    <main
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100%",
-        padding: "2rem",
-        boxSizing: "border-box",
-      }}
-    >
-      <div className="window" style={{ width: "75%", height: "85%", display: 'flex', flexDirection: 'column' }}>
+    <main className="page-container">
+      <div className="window main-window">
         <div className="title-bar">
           <div className="title-bar-text">Bookings</div>
           <div className="title-bar-controls">

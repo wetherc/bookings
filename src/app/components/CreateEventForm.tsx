@@ -191,7 +191,12 @@ export function CreateEventForm({ onEventCreated }: CreateEventFormProps) {
           <ul className="tree-view">
             {eventTimes.map(time => (
               <li key={time.id}>
-                {time.startDate.toLocaleDateString()} - {time.endDate.toLocaleDateString()} from {formatTimePart(time.startTime.hour)}:{formatTimePart(time.startTime.minute)} to {formatTimePart(time.endTime.hour)}:{formatTimePart(time.endTime.minute)}
+                <span className="event-time-part">
+                  {time.startDate.toLocaleDateString()} - {time.endDate.toLocaleDateString()}
+                </span>
+                <span className="event-time-part">
+                  from {formatTimePart(time.startTime.hour)}:{formatTimePart(time.startTime.minute)} to {formatTimePart(time.endTime.hour)}:{formatTimePart(time.endTime.minute)}
+                </span>
                 <button onClick={() => handleRemoveEventTime(time.id)} style={{ marginLeft: '1rem' }}>Remove</button>
               </li>
             ))}

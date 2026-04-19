@@ -28,7 +28,7 @@ export function DatePicker({ startDate, endDate, setStartDate, setEndDate }: Dat
   };
 
   return (
-    <div style={{ display: 'flex', gap: '1rem' }}>
+    <div className="date-picker-container">
       <div style={{ position: 'relative' }}>
         <label htmlFor="startDate">Start Date:</label>
         <div className="field-row" style={{ alignItems: 'center' }}>
