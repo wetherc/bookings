@@ -7,16 +7,26 @@ export async function GET(
 ) {
   try {
     const { eventId } = await params;
+    const adminToken = request.nextUrl.searchParams.get('token');
+
+    if (!adminToken) {
+      return NextResponse.json({ error: "Admin token is required" }, { status: 401 });
+    }
+    
+    console.log(`Fetching event. eventId: ${eventId}, adminToken: ${adminToken}`);
+    
     const db = getDbClient();
 
-    // Fetch event details
+    // Fetch event details and validate token
     const eventResult = await db.execute({
-      sql: "SELECT event_id, title, description, block_minutes, time_slots FROM events WHERE event_id = :eventId",
-      args: { eventId },
+      sql: "SELECT event_id, title, description, block_minutes, time_slots FROM events WHERE event_id = :eventId AND admin_token = :adminToken",
+      args: { eventId, adminToken },
     });
 
+    console.log(`Found ${eventResult.rows.length} matching events.`);
+
     if (eventResult.rows.length === 0) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 });
+      return NextResponse.json({ error: "Event not found or unauthorized" }, { status: 404 });
     }
 
     const event = eventResult.rows[0];

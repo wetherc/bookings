@@ -104,9 +104,9 @@ export function CreateEventForm() {
 
       const { event_id, admin_token } = await response.json();
       
-      // We'll need the admin token for future actions, for now let's just redirect.
-      // In a real app, you might store this token in local storage or a cookie.
-      router.push(`/events/${event_id}/admin`);
+      // We'll need the admin token for future actions. For now, we pass it in the URL.
+      // In a real app, you might store this token more securely.
+      router.push(`/events/${event_id}/admin?token=${admin_token}`);
 
     } catch (error) {
       const message = error instanceof Error ? error.message : "An unknown error occurred.";
