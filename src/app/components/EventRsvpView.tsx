@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
+import { Alert } from "./Alert"; // Import the Alert component
 
 const formatTimePart = (value: number) => String(value).padStart(2, '0');
 
@@ -168,17 +169,85 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
   };
 
   const handleSubmitRsvp = async () => {
+    setIsSubmitting(true);
+    setError(null);
+
     if (!respondentName.trim()) {
       setError("Please enter your name.");
+      setIsSubmitting(false);
       return;
     }
     if (selectedSlots.length === 0) {
       setError("Please select at least one time slot.");
+      setIsSubmitting(false);
       return;
     }
 
-    setIsSubmitting(true);
-    setError(null);
+    if (!eventData) {
+      setError("Event data is not loaded yet.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Group selectedSlots by date
+    const slotsByDate: { [date: string]: string[] } = {};
+    selectedSlots.forEach(isoString => {
+      const date = new Date(isoString);
+      const dateKey = `${date.getUTCFullYear()}-${formatTimePart(date.getUTCMonth() + 1)}-${formatTimePart(date.getUTCDate())}`;
+      if (!slotsByDate[dateKey]) {
+        slotsByDate[dateKey] = [];
+      }
+      slotsByDate[dateKey].push(isoString);
+    });
+
+    let allBlocksAreValid = true; // Assume true initially
+
+    for (const dateKey in slotsByDate) {
+      const dailySlots = slotsByDate[dateKey].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+      
+      if (dailySlots.length === 0) continue;
+
+      let currentBlockStartTime = new Date(dailySlots[0]);
+      let currentBlockEndTime = new Date(dailySlots[0]);
+
+      // Calculate duration for blocks of 1 or more slots
+      if (dailySlots.length > 0) {
+        for (let i = 1; i < dailySlots.length; i++) {
+          const prevSlotTime = new Date(dailySlots[i-1]);
+          const currentSlotTime = new Date(dailySlots[i]);
+          const diffInMinutes = (currentSlotTime.getTime() - prevSlotTime.getTime()) / (1000 * 60);
+
+          if (diffInMinutes === 30) {
+            currentBlockEndTime = currentSlotTime;
+          } else {
+            const blockDuration = (currentBlockEndTime.getTime() - currentBlockStartTime.getTime()) / (1000 * 60) + 30;
+            if (blockDuration < eventData.block_minutes) { // Check if this block is too short
+              allBlocksAreValid = false;
+              break; // Exit inner loop, this day has an invalid block
+            }
+            currentBlockStartTime = currentSlotTime;
+            currentBlockEndTime = currentSlotTime;
+          }
+        }
+
+        // Check the last block for this day
+        const lastBlockDuration = (currentBlockEndTime.getTime() - currentBlockStartTime.getTime()) / (1000 * 60) + 30;
+        if (lastBlockDuration < eventData.block_minutes) { // Check if the last block is too short
+          allBlocksAreValid = false;
+        }
+      }
+
+      if (!allBlocksAreValid) {
+        break; // Exit outer loop, an invalid block was found
+      }
+    }
+
+    // Final check
+    if (!allBlocksAreValid) {
+      setError(`All selected contiguous time blocks must be at least ${eventData.block_minutes} minutes long.`);
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       const method = currentRespondentToken ? 'PUT' : 'POST';
@@ -220,9 +289,7 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
     return <div>Loading event for RSVP...</div>;
   }
 
-  if (error) {
-    return <div style={{ color: 'red' }}>Error: {error}</div>;
-  }
+
 
   if (!eventData) {
     return <div>Event not found or cannot be RSVP'd to.</div>;
@@ -358,6 +425,7 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
             <button onClick={() => setRsvpSaved(false)} disabled={isSubmitting}>Edit RSVP</button>
         )}
       </div>
+      {error && <Alert message={error} onClose={() => setError(null)} />}
     </>
   );
 }
