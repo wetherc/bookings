@@ -7,9 +7,10 @@ const formatTimePart = (value: number) => String(value).padStart(2, '0');
 interface EventAdminViewProps {
   eventId: string;
   token: string;
+  onTitleLoaded: (title: string) => void;
 }
 
-export function EventAdminView({ eventId, token }: EventAdminViewProps) {
+export function EventAdminView({ eventId, token, onTitleLoaded }: EventAdminViewProps) {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +32,9 @@ export function EventAdminView({ eventId, token }: EventAdminViewProps) {
         
         const fetchedData = await res.json();
         setData(fetchedData);
+        if (fetchedData.event?.title) {
+          onTitleLoaded(fetchedData.event.title);
+        }
 
       } catch (e) {
         setError(e instanceof Error ? e.message : "An unknown error occurred.");
@@ -40,6 +44,7 @@ export function EventAdminView({ eventId, token }: EventAdminViewProps) {
     }
 
     getEventData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, token]);
 
   if (isLoading) {

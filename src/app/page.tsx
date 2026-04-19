@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from 'next/navigation';
 import { CreateEventForm } from "./components/CreateEventForm";
 import { EventAdminView } from "./components/EventAdminView";
 
@@ -18,24 +19,52 @@ const defaultTabs: Tab[] = [
   { id: 'rsvp', title: 'RSVP / Edit', type: 'rsvp' },
 ];
 
-export default function Home() {
+function HomePage() {
   const [tabs, setTabs] = useState<Tab[]>(defaultTabs);
   const [activeTabId, setActiveTabId] = useState<string>('create');
   const [isMounted, setIsMounted] = useState(false); // To prevent SSR hydration issues with localStorage
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Effect to load tabs from localStorage and handle incoming links
   useEffect(() => {
     setIsMounted(true);
+    let initialTabs = [...defaultTabs];
     try {
       const storedTabs = localStorage.getItem(TABS_STORAGE_KEY);
       if (storedTabs) {
-        setTabs(JSON.parse(storedTabs));
+        initialTabs = JSON.parse(storedTabs);
       }
     } catch (error) {
       console.error("Failed to parse tabs from localStorage", error);
-      setTabs(defaultTabs);
+      // Keep default tabs if parsing fails
     }
-  }, []);
 
+    const eventId = searchParams.get('eventId');
+    const adminToken = searchParams.get('adminToken');
+    
+    if (eventId && adminToken) {
+      const existingTab = initialTabs.find(tab => tab.id === eventId);
+      if (!existingTab) {
+        const newTab: Tab = {
+          id: eventId,
+          title: `Admin: ${eventId.substring(0, 8)}...`, // Temporary title
+          type: 'admin',
+          token: adminToken,
+        };
+        initialTabs.push(newTab);
+      }
+      setActiveTabId(eventId);
+      router.replace('/', { shallow: true }); // Clean up URL
+    }
+    
+    setTabs(initialTabs);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
+
+  // Effect to save tabs to localStorage whenever they change
   useEffect(() => {
     if (isMounted) {
       localStorage.setItem(TABS_STORAGE_KEY, JSON.stringify(tabs));
@@ -49,8 +78,7 @@ export default function Home() {
       type: 'admin',
       token: event.adminToken,
     };
-
-    // Avoid adding a duplicate tab
+    
     if (!tabs.find(tab => tab.id === newTab.id)) {
       setTabs([...tabs, newTab]);
     }
@@ -58,26 +86,26 @@ export default function Home() {
   };
 
   const handleCloseTab = (tabIdToClose: string) => {
-    // Prevent closing default tabs
-    if (defaultTabs.some(tab => tab.id === tabIdToClose)) {
-      return;
-    }
+    if (defaultTabs.some(tab => tab.id === tabIdToClose)) return;
 
     const tabIndex = tabs.findIndex(tab => tab.id === tabIdToClose);
     const newTabs = tabs.filter(tab => tab.id !== tabIdToClose);
-
-    // If the closed tab was active, switch to a new tab
+    
     if (activeTabId === tabIdToClose) {
       const newActiveTab = newTabs[tabIndex - 1] || newTabs[0];
-      if (newActiveTab) {
-        setActiveTabId(newActiveTab.id);
-      }
+      if (newActiveTab) setActiveTabId(newActiveTab.id);
     }
     setTabs(newTabs);
   };
 
-  const activeTab = tabs.find(tab => tab.id === activeTabId) || tabs[0];
+  const handleTitleLoaded = (eventId: string, newTitle: string) => {
+    setTabs(prevTabs => prevTabs.map(tab => 
+      tab.id === eventId ? { ...tab, title: newTitle } : tab
+    ));
+  };
 
+  const activeTab = tabs.find(tab => tab.id === activeTabId) || tabs[0];
+  
   const truncate = (str: string, len: number) => {
     return str.length > len ? str.substring(0, len) + "..." : str;
   }
@@ -118,7 +146,7 @@ export default function Home() {
                 {tab.type === 'admin' && (
                   <span
                     onClick={(e) => {
-                      e.stopPropagation(); // Prevent tab selection when closing
+                      e.stopPropagation();
                       handleCloseTab(tab.id);
                     }}
                     style={{ marginLeft: '8px', fontWeight: 'bold', cursor: 'pointer' }}
@@ -149,11 +177,23 @@ export default function Home() {
               </div>
             )}
             {activeTab?.type === 'admin' && activeTab.token && (
-              <EventAdminView eventId={activeTab.id} token={activeTab.token} />
+              <EventAdminView 
+                eventId={activeTab.id} 
+                token={activeTab.token}
+                onTitleLoaded={(newTitle) => handleTitleLoaded(activeTab.id, newTitle)}
+              />
             )}
           </div>
         </div>
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomePage />
+    </Suspense>
   );
 }
