@@ -10,7 +10,7 @@ interface EventRsvpViewProps {
   onTitleLoaded: (title: string, type: 'admin' | 'rsvp') => void;
 }
 
-export function EventRsvpView({ eventId, respondentToken, onTitleLoaded }: EventRsvpViewProps) {
+export function EventRsvpView({ eventId, respondentToken: initialRespondentToken, onTitleLoaded }: EventRsvpViewProps) {
   const [eventData, setEventData] = useState<any>(null);
   const [respondentName, setRespondentName] = useState("");
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
@@ -18,6 +18,7 @@ export function EventRsvpView({ eventId, respondentToken, onTitleLoaded }: Event
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [rsvpSaved, setRsvpSaved] = useState(false);
+  const [currentRespondentToken, setCurrentRespondentToken] = useState<string | undefined>(initialRespondentToken);
 
   useEffect(() => {
     async function fetchData() {
@@ -36,9 +37,9 @@ export function EventRsvpView({ eventId, respondentToken, onTitleLoaded }: Event
         setEventData(fetchedEventData.event);
         onTitleLoaded(fetchedEventData.event.title, 'rsvp');
 
-        // If respondentToken exists, fetch existing RSVP
-        if (respondentToken) {
-          const rsvpRes = await fetch(`/api/rsvps/${eventId}?token=${respondentToken}`);
+        // If currentRespondentToken exists, fetch existing RSVP
+        if (currentRespondentToken) {
+          const rsvpRes = await fetch(`/api/rsvps/${eventId}?token=${currentRespondentToken}`);
           if (!rsvpRes.ok) {
             // If RSVP not found for token, proceed without pre-filling
             if (rsvpRes.status !== 404) {
@@ -49,6 +50,7 @@ export function EventRsvpView({ eventId, respondentToken, onTitleLoaded }: Event
             const fetchedRsvpData = await rsvpRes.json();
             setRespondentName(fetchedRsvpData.name);
             setSelectedSlots(fetchedRsvpData.selected_slots);
+            setRsvpSaved(true); // Pre-fill implies it's already saved
           }
         }
 
@@ -61,7 +63,7 @@ export function EventRsvpView({ eventId, respondentToken, onTitleLoaded }: Event
 
     fetchData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, respondentToken]);
+  }, [eventId, currentRespondentToken]);
 
   const handleSlotSelection = (slot: string) => {
     setSelectedSlots(prev =>
@@ -83,9 +85,9 @@ export function EventRsvpView({ eventId, respondentToken, onTitleLoaded }: Event
     setError(null);
 
     try {
-      const method = respondentToken ? 'PUT' : 'POST';
-      const url = respondentToken 
-        ? `/api/rsvps/${eventId}?token=${respondentToken}` 
+      const method = currentRespondentToken ? 'PUT' : 'POST';
+      const url = currentRespondentToken 
+        ? `/api/rsvps/${eventId}?token=${currentRespondentToken}` 
         : `/api/rsvps`;
 
       const body = {
@@ -106,10 +108,10 @@ export function EventRsvpView({ eventId, respondentToken, onTitleLoaded }: Event
       }
 
       const responseData = await res.json();
-      if (responseData.respondent_token && !respondentToken) {
-        // If it was a new RSVP, update the URL (or local storage for tab) with the new token
-        // For now, we'll just acknowledge success. Later, might update tab state to include token.
-        console.log("New RSVP created, token:", responseData.respondent_token);
+      if (responseData.respondent_token && !currentRespondentToken) {
+        setCurrentRespondentToken(responseData.respondent_token);
+        // This is where you would ideally update the parent tab state
+        // to persist the respondentToken in the tab.
       }
       setRsvpSaved(true);
 
@@ -154,54 +156,88 @@ export function EventRsvpView({ eventId, respondentToken, onTitleLoaded }: Event
     }
   });
 
+  const rsvpLink = currentRespondentToken 
+    ? `${window.location.origin}/events/${eventId}?token=${currentRespondentToken}`
+    : '';
 
   return (
     <>
       <fieldset>
         <legend>RSVP for {eventData.title}</legend>
         <p><strong>Description:</strong> {eventData.description || 'N/A'}</p>
-        <p>Select the times you are available. Each slot is {eventData.block_minutes} minutes.</p>
+        {!rsvpSaved && <p>Select the times you are available. Each slot is {eventData.block_minutes} minutes.</p>}
       </fieldset>
 
-      <fieldset style={{ marginTop: '1rem' }}>
-        <legend>Your Availability</legend>
-        <div style={{ marginBottom: '1rem' }}>
-          <label htmlFor="respondentName">Your Name:</label>
-          <input 
-            id="respondentName" 
-            type="text" 
-            value={respondentName} 
-            onChange={e => setRespondentName(e.target.value)} 
-            style={{ width: '100%' }} 
-            disabled={isSubmitting}
-          />
-        </div>
+      {!rsvpSaved ? (
+        <fieldset style={{ marginTop: '1rem' }}>
+          <legend>Your Availability</legend>
+          <div style={{ marginBottom: '1rem' }}>
+            <label htmlFor="respondentName">Your Name:</label>
+            <input 
+              id="respondentName" 
+              type="text" 
+              value={respondentName} 
+              onChange={e => setRespondentName(e.target.value)} 
+              style={{ width: '100%' }} 
+              disabled={isSubmitting}
+            />
+          </div>
 
-        <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
-          <ul className="tree-view">
-            {allPossibleSlots.map(slot => (
-              <li key={slot}>
-                <input 
-                  type="checkbox" 
-                  id={slot} 
-                  checked={selectedSlots.includes(slot)} 
-                  onChange={() => handleSlotSelection(slot)} 
-                  disabled={isSubmitting}
-                />
-                <label htmlFor={slot} style={{ marginLeft: '0.5rem' }}>
-                  {new Date(slot).toLocaleString()}
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </fieldset>
+          <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+            <div style={{ paddingTop: '0.5rem' }}>
+              {allPossibleSlots.map(slot => (
+                <div key={slot} style={{ display: 'flex', alignItems: 'center', marginBottom: '0.25rem' }}>
+                  <input 
+                    type="checkbox" 
+                    id={slot} 
+                    checked={selectedSlots.includes(slot)} 
+                    onChange={() => handleSlotSelection(slot)} 
+                    disabled={isSubmitting}
+                    style={{ marginRight: '0.5rem' }}
+                  />
+                  <label htmlFor={slot}>
+                    {new Date(slot).toLocaleString()}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        </fieldset>
+      ) : (
+        <fieldset style={{ marginTop: '1rem' }}>
+          <legend>Your Submitted Availability</legend>
+          <p>Thank you for submitting your availability!</p>
+          <p><strong>Your Name:</strong> {respondentName}</p>
+          <div style={{ maxHeight: '200px', overflowY: 'auto', paddingTop: '0.5rem' }}>
+            <p><strong>Selected Slots:</strong></p>
+            {selectedSlots.length > 0 ? (
+              <ul>
+                {selectedSlots.map(slot => (
+                  <li key={slot}>{new Date(slot).toLocaleString()}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No slots selected.</p>
+            )}
+          </div>
+          {currentRespondentToken && (
+            <div style={{ marginTop: '1rem' }}>
+              <p>This is your personal RSVP link. <strong>Save it!</strong> You will need this link to view or edit your availability later.</p>
+              <input type="text" readOnly value={rsvpLink} style={{ width: '100%' }} />
+            </div>
+          )}
+        </fieldset>
+      )}
 
       <div style={{ marginTop: "1rem", textAlign: "right" }}>
-        {rsvpSaved && <span style={{ color: 'green', marginRight: '1rem' }}>RSVP Saved!</span>}
-        <button onClick={handleSubmitRsvp} disabled={isSubmitting}>
-          {isSubmitting ? 'Saving...' : 'Save RSVP'}
-        </button>
+        {!rsvpSaved && (
+          <button onClick={handleSubmitRsvp} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : 'Save RSVP'}
+          </button>
+        )}
+        {rsvpSaved && (
+            <button onClick={() => setRsvpSaved(false)} disabled={isSubmitting}>Edit RSVP</button>
+        )}
       </div>
     </>
   );
