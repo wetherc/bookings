@@ -4,6 +4,28 @@ import { useState, useEffect, useMemo } from 'react';
 
 const formatTimePart = (value: number) => String(value).padStart(2, '0');
 
+interface TimeInput {
+  hour: number;
+  minute: number;
+}
+
+interface TimeBlock {
+  startDate: string; // ISO date string
+  endDate: string;   // ISO date string
+  startTime: TimeInput;
+  endTime: TimeInput;
+}
+
+interface EventData {
+  event_id: string;
+  admin_token: string;
+  title: string;
+  description?: string; // Optional based on SQL schema
+  block_minutes: number;
+  time_slots: TimeBlock[]; // This is the JSON array
+  created_at: string;
+}
+
 interface EventRsvpViewProps {
   eventId: string;
   respondentToken?: string;
@@ -11,7 +33,7 @@ interface EventRsvpViewProps {
 }
 
 export function EventRsvpView({ eventId, respondentToken: initialRespondentToken, onTitleLoaded }: EventRsvpViewProps) {
-  const [eventData, setEventData] = useState<any>(null);
+  const [eventData, setEventData] = useState<EventData | null>(null);
   const [respondentName, setRespondentName] = useState("");
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,7 +48,7 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
     }
 
     const allPossibleSlots: string[] = [];
-    eventData.time_slots.forEach((timeBlock: any) => {
+    eventData.time_slots.forEach((timeBlock: TimeBlock) => {
       const start = new Date(timeBlock.startDate);
       start.setUTCHours(0, 0, 0, 0);
 
@@ -129,7 +151,7 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
     const slotsForDate = dateToTimeMap.get(date);
     if (!slotsForDate) return;
 
-    const isoSlotsForDate = Array.from(slotsForDate).map(time => {
+    const isoSlotsForDate = Array.from<string>(slotsForDate).map((time: string) => {
       const [hour, minute] = time.split(':').map(Number);
       const dateObj = new Date(`${date}T00:00:00Z`);
       dateObj.setUTCHours(hour, minute);
@@ -243,7 +265,7 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
               </thead>
               <tbody>
                 {dates.map(date => {
-                  const allSlotsForDate = Array.from(dateToTimeMap.get(date) || []).map(time => {
+                  const allSlotsForDate = Array.from<string>(dateToTimeMap.get(date) || []).map((time: string) => {
                     const [hour, minute] = time.split(':').map(Number);
                     const dateObj = new Date(`${date}T00:00:00Z`);
                     dateObj.setUTCHours(hour, minute);
@@ -334,3 +356,4 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
     </>
   );
 }
+

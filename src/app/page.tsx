@@ -58,7 +58,7 @@ function HomePage() {
         initialTabs.push(newTab);
       }
       setActiveTabId(eventId);
-      router.replace('/', { shallow: true }); // Clean up URL
+      router.replace('/'); // Clean up URL
     } else if (eventId) { // Handle RSVP links (with or without respondentToken)
         const existingTab = initialTabs.find(tab => tab.id === eventId);
         if (!existingTab) {
@@ -74,7 +74,7 @@ function HomePage() {
             existingTab.respondentToken = respondentToken;
         }
         setActiveTabId(eventId);
-        router.replace('/', { shallow: true }); // Clean up URL
+        router.replace('/'); // Clean up URL
     }
     
     setTabs(initialTabs);
