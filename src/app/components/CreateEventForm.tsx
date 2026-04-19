@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useRouter } from 'next/navigation';
 import { DatePicker } from "./DatePicker";
 import { Alert } from "./Alert";
 
@@ -11,10 +10,13 @@ interface EventTime {
   endTime: { hour: number; minute: number };
 }
 
+interface CreateEventFormProps {
+  onEventCreated: (event: { eventId: string; adminToken: string; eventName: string }) => void;
+}
+
 const formatTimePart = (value: number) => String(value).padStart(2, '0');
 
-export function CreateEventForm() {
-  const router = useRouter();
+export function CreateEventForm({ onEventCreated }: CreateEventFormProps) {
   const [eventName, setEventName] = useState("");
   const [eventDescription, setEventDescription] = useState("");
   const [blockMinutes, setBlockMinutes] = useState(30);
@@ -104,9 +106,11 @@ export function CreateEventForm() {
 
       const { event_id, admin_token } = await response.json();
       
-      // We'll need the admin token for future actions. For now, we pass it in the URL.
-      // In a real app, you might store this token more securely.
-      router.push(`/events/${event_id}/admin?token=${admin_token}`);
+      onEventCreated({
+        eventId: event_id,
+        adminToken: admin_token,
+        eventName: eventName,
+      });
 
     } catch (error) {
       const message = error instanceof Error ? error.message : "An unknown error occurred.";
