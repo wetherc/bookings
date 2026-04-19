@@ -134,7 +134,7 @@ export function EventAdminView({ eventId, token, onTitleLoaded }: EventAdminView
         <legend>Event Details</legend>
         <p><strong>Title:</strong> {event.title}</p>
         <p><strong>Description:</strong> {event.description || 'N/A'}</p>
-        <p><strong>Time Slot Duration:</strong> {event.block_minutes} minutes</p>
+        <p><strong>Event Duration:</strong> {event.block_minutes} minutes</p>
       </fieldset>
 
       <fieldset style={{ marginTop: '1rem' }}>

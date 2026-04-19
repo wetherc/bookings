@@ -134,11 +134,12 @@ export function CreateEventForm({ onEventCreated }: CreateEventFormProps) {
         <textarea id="eventDescription" value={eventDescription} onChange={e => setEventDescription(e.target.value)} style={{ flexGrow: 1, height: "unset" }}></textarea>
       </div>
        <div className="field-row" style={{ marginTop: '1rem' }}>
-        <label htmlFor="blockMinutes">Time Slot Duration:</label>
+        <label htmlFor="blockMinutes">Event Duration:</label>
         <select id="blockMinutes" value={blockMinutes} onChange={e => setBlockMinutes(parseInt(e.target.value))}>
-          <option value="15">15 minutes</option>
           <option value="30">30 minutes</option>
           <option value="60">60 minutes</option>
+          <option value="90">90 minutes</option>
+          <option value="120">120 minutes</option>
         </select>
       </div>
       <fieldset style={{ marginTop: "1rem" }}>

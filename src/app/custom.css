@@ -32,6 +32,12 @@
   gap: 1rem;
 }
 
+input[type="checkbox"] {
+  appearance: auto !important; /* Revert to default appearance */
+  -webkit-appearance: auto !important; /* For Webkit browsers */
+  opacity: 1 !important; /* Ensure visibility */
+}
+
 @media (max-width: 768px) {
   .page-container {
     padding: 0;

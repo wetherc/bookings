@@ -67,7 +67,7 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
         const currentBlock = new Date(currentSlotStart.getTime());
         while (currentBlock < currentSlotEnd) {
           allPossibleSlots.push(currentBlock.toISOString());
-          currentBlock.setUTCMinutes(currentBlock.getUTCMinutes() + eventData.block_minutes);
+          currentBlock.setUTCMinutes(currentBlock.getUTCMinutes() + 30);
         }
         
         currentDate.setUTCDate(currentDate.getUTCDate() + 1);
@@ -237,7 +237,7 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
       <fieldset>
         <legend>RSVP for {eventData.title}</legend>
         <p><strong>Description:</strong> {eventData.description || 'N/A'}</p>
-        {!rsvpSaved && <p>Select the times you are available. Each slot is {eventData.block_minutes} minutes.</p>}
+        {!rsvpSaved && <p>Select the times you are available. The event is {eventData.block_minutes} minutes.</p>}
       </fieldset>
 
       {!rsvpSaved ? (
@@ -259,6 +259,7 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
             <table className="interactive">
               <thead>
                 <tr>
+                  <th></th>
                   <th>Date</th>
                   {timeSlots.map(time => <th key={time}>{time}</th>)}
                 </tr>
@@ -275,14 +276,15 @@ export function EventRsvpView({ eventId, respondentToken: initialRespondentToken
 
                   return (
                     <tr key={date}>
-                      <td style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <td>
                         <input
                           type="checkbox"
                           onChange={() => handleSelectAllForDate(date)}
                           checked={areAllSelected}
                           disabled={isSubmitting || allSlotsForDate.length === 0}
-                          style={{ margin: 0 }}
                         />
+                      </td>
+                      <td>
                         {new Date(date + 'T12:00:00Z').toLocaleDateString(undefined, { timeZone: 'UTC' })}
                       </td>
                       {timeSlots.map(time => {
