@@ -142,7 +142,7 @@ export const groupAndFormatSlots = (
   }
 
   const formattedRanges: string[] = [];
-  const slotDurationMs = blockMinutes * 60 * 1000;
+  const slotDurationMs = 30 * 60 * 1000; // Always merge in 30-minute blocks
 
   // 3. Process each day
   for (const daySlots of slotsByDay.values()) {
