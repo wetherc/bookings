@@ -1,8 +1,16 @@
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Alert } from "./Alert";
 import { EventDurationSelector } from "./EventDurationSelector";
-import { TimeSlotManager } from "./TimeSlotManager";
 import { type EventTime } from "@/lib/utils";
+
+const TimeSlotManager = dynamic(
+  () => import("./TimeSlotManager").then((mod) => mod.TimeSlotManager),
+  {
+    ssr: false,
+    loading: () => <div>Loading calendar...</div>,
+  },
+);
 
 interface CreateEventFormProps {
   onEventCreated: (event: {

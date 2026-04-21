@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Alert } from "./Alert"; // Import the Alert component
-import { CopyToClipboardButton } from "./CopyToClipboardButton";
+import { RsvpForm } from "./RsvpForm";
+import { RsvpConfirmation } from "./RsvpConfirmation";
 
 const formatTimePart = (value: number) => String(value).padStart(2, "0");
 
@@ -338,6 +339,10 @@ export function EventRsvpView({
     return <div>Loading event for RSVP...</div>;
   }
 
+  if (error && !eventData) {
+    return <Alert message={error} onClose={() => setError(null)} />;
+  }
+
   if (!eventData) {
     return <div>Event not found or cannot be RSVPed to.</div>;
   }
@@ -353,176 +358,35 @@ export function EventRsvpView({
         <p>
           <strong>Description:</strong> {eventData.description || "N/A"}
         </p>
-        {!rsvpSaved && (
-          <p>
-            Select the times you are available. The event is{" "}
-            {eventData.block_minutes} minutes.
-          </p>
-        )}
+        <p>
+          Select the times you are available. The event is{" "}
+          {eventData.block_minutes} minutes long.
+        </p>
       </fieldset>
 
       {!rsvpSaved ? (
-        <fieldset style={{ marginTop: "1rem" }}>
-          <legend>Your Availability</legend>
-          <div style={{ marginBottom: "1rem" }}>
-            <label htmlFor="respondentName">Your Name:</label>
-            <input
-              id="respondentName"
-              type="text"
-              value={respondentName}
-              onChange={(e) => setRespondentName(e.target.value)}
-              style={{ width: "100%" }}
-              disabled={isSubmitting}
-            />
-          </div>
-
-          <div style={{ overflow: "auto" }}>
-            <table className="interactive">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Date</th>
-                  {timeSlots.map((time) => (
-                    <th key={time}>{time}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {dates.map((date) => {
-                  const allSlotsForDate = Array.from<string>(
-                    dateToTimeMap.get(date) || [],
-                  ).map((time: string) => {
-                    const [hour, minute] = time.split(":").map(Number);
-                    const dateObj = new Date(`${date}T00:00:00Z`);
-                    dateObj.setUTCHours(hour, minute);
-                    return dateObj.toISOString();
-                  });
-                  const areAllSelected =
-                    allSlotsForDate.length > 0 &&
-                    allSlotsForDate.every((slot) =>
-                      selectedSlots.includes(slot),
-                    );
-
-                  return (
-                    <tr key={date}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          onChange={() => handleSelectAllForDate(date)}
-                          checked={areAllSelected}
-                          disabled={
-                            isSubmitting || allSlotsForDate.length === 0
-                          }
-                        />
-                      </td>
-                      <td>
-                        {new Date(date + "T12:00:00Z").toLocaleDateString(
-                          undefined,
-                          { timeZone: "UTC" },
-                        )}
-                      </td>
-                      {timeSlots.map((time) => {
-                        const slotExists = dateToTimeMap.get(date)?.has(time);
-
-                        let isoString = "";
-                        if (slotExists) {
-                          const [hour, minute] = time.split(":").map(Number);
-                          const dateObj = new Date(`${date}T00:00:00Z`);
-                          dateObj.setUTCHours(hour, minute);
-                          isoString = dateObj.toISOString();
-                        }
-
-                        return (
-                          <td key={time} style={{ textAlign: "center" }}>
-                            {slotExists && (
-                              <input
-                                type="checkbox"
-                                id={isoString}
-                                checked={selectedSlots.includes(isoString)}
-                                onChange={() => handleSlotSelection(isoString)}
-                                disabled={isSubmitting}
-                              />
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </fieldset>
+        <RsvpForm
+          respondentName={respondentName}
+          setRespondentName={setRespondentName}
+          isSubmitting={isSubmitting}
+          dates={dates}
+          timeSlots={timeSlots}
+          dateToTimeMap={dateToTimeMap}
+          selectedSlots={selectedSlots}
+          onSlotSelection={handleSlotSelection}
+          onSelectAllForDate={handleSelectAllForDate}
+          onSubmit={handleSubmitRsvp}
+        />
       ) : (
-        <fieldset style={{ marginTop: "1rem" }}>
-          <legend>Your Submitted Availability</legend>
-          <p>Thank you for submitting your availability!</p>
-          <p>
-            <strong>Your Name:</strong> {respondentName}
-          </p>
-          <div
-            style={{
-              maxHeight: "200px",
-              overflowY: "auto",
-              paddingTop: "0.5rem",
-            }}
-          >
-            <p>
-              <strong>Selected Slots:</strong>
-            </p>
-            {selectedSlots.length > 0 ? (
-              <ul>
-                {selectedSlots.map((slot) => (
-                  <li key={slot}>
-                    <span className="datetime-part">
-                      {new Date(slot).toLocaleDateString()}
-                    </span>
-                    <span className="datetime-part">
-                      {new Date(slot).toLocaleTimeString()}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No slots selected.</p>
-            )}
-          </div>
-          {currentRespondentToken && (
-            <div style={{ marginTop: "1rem" }}>
-              <p>
-                This is your personal RSVP link. <strong>Save it!</strong> You
-                will need this link to view or edit your availability later.
-              </p>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <input
-                  type="text"
-                  readOnly
-                  value={rsvpLink}
-                  style={{ width: "100%" }}
-                />
-                <CopyToClipboardButton
-                  textToCopy={rsvpLink}
-                  buttonText="Copy URL"
-                  className="copy-button"
-                />
-              </div>
-            </div>
-          )}
-        </fieldset>
+        <RsvpConfirmation
+          respondentName={respondentName}
+          selectedSlots={selectedSlots}
+          rsvpLink={rsvpLink}
+          onEdit={() => setRsvpSaved(false)}
+          isSubmitting={isSubmitting}
+        />
       )}
 
-      <div style={{ marginTop: "1rem", textAlign: "right" }}>
-        {!rsvpSaved && (
-          <button onClick={handleSubmitRsvp} disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Save RSVP"}
-          </button>
-        )}
-        {rsvpSaved && (
-          <button onClick={() => setRsvpSaved(false)} disabled={isSubmitting}>
-            Edit RSVP
-          </button>
-        )}
-      </div>
       {error && <Alert message={error} onClose={() => setError(null)} />}
     </>
   );

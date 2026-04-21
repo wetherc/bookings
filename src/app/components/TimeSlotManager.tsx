@@ -33,21 +33,19 @@ export function TimeSlotManager({
   setEventTimes,
 }: TimeSlotManagerProps) {
   const [state, setState] = useState<TimeSlotManagerState>(() => {
-    if (typeof window !== "undefined") {
-      const savedState = sessionStorage.getItem(SESSION_STORAGE_KEY);
-      if (savedState) {
-        const parsed = JSON.parse(savedState);
-        return {
-          startDate: parsed.startDate ? new Date(parsed.startDate) : new Date(),
-          endDate: parsed.endDate ? new Date(parsed.endDate) : null,
-          startTime: parsed.startTime || { hour: 9, minute: 0 },
-          endTime: parsed.endTime || { hour: 17, minute: 0 },
-          calendarType: parsed.calendarType || "Traditional",
-          selectedVisualSlots: new Set(
-            (parsed.selectedVisualSlots || []) as string[],
-          ),
-        };
-      }
+    const savedState = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (savedState) {
+      const parsed = JSON.parse(savedState);
+      return {
+        startDate: parsed.startDate ? new Date(parsed.startDate) : new Date(),
+        endDate: parsed.endDate ? new Date(parsed.endDate) : null,
+        startTime: parsed.startTime || { hour: 9, minute: 0 },
+        endTime: parsed.endTime || { hour: 17, minute: 0 },
+        calendarType: parsed.calendarType || "Traditional",
+        selectedVisualSlots: new Set(
+          (parsed.selectedVisualSlots || []) as string[],
+        ),
+      };
     }
     return {
       startDate: new Date(),
@@ -58,6 +56,15 @@ export function TimeSlotManager({
       selectedVisualSlots: new Set<string>(),
     };
   });
+  const [alert, setAlert] = useState({ isOpen: false, message: "" });
+
+  useEffect(() => {
+    const stateToSave = {
+      ...state,
+      selectedVisualSlots: Array.from(state.selectedVisualSlots),
+    };
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(stateToSave));
+  }, [state]);
 
   const {
     startDate,
@@ -67,21 +74,6 @@ export function TimeSlotManager({
     calendarType,
     selectedVisualSlots,
   } = state;
-
-  const [alert, setAlert] = useState({ isOpen: false, message: "" });
-
-  // The session storage logic from CreateEventForm is probably not fully needed here,
-  // especially if this component is used in different contexts.
-  // For now, I'll include it but it might need adjustment.
-  // The state it saves/loads is local to this component.
-
-  useEffect(() => {
-    const stateToSave = {
-      ...state,
-      selectedVisualSlots: Array.from(state.selectedVisualSlots),
-    };
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(stateToSave));
-  }, [state]);
 
   const handleStartTimeChange = (part: "hour" | "minute", value: number) => {
     const newStartTime = { ...startTime, [part]: value };
