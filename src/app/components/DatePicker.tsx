@@ -8,15 +8,16 @@ interface DatePickerProps {
     endDate: Date | null;
     setStartDate: (date: Date) => void;
     setEndDate: (date: Date | null) => void;
+    showEndDate?: boolean;
 }
 
-export function DatePicker({ startDate, endDate, setStartDate, setEndDate }: DatePickerProps) {
+export function DatePicker({ startDate, endDate, setStartDate, setEndDate, showEndDate = true }: DatePickerProps) {
   const [isStartCalendarOpen, setIsStartCalendarOpen] = useState(false);
   const [isEndCalendarOpen, setIsEndCalendarOpen] = useState(false);
 
   const handleSelectStartDate = (date: Date) => {
     setStartDate(date);
-    if (endDate && date > endDate) {
+    if (endDate && date > endDate && showEndDate) {
       setEndDate(null);
     }
     setIsStartCalendarOpen(false);
@@ -51,27 +52,29 @@ export function DatePicker({ startDate, endDate, setStartDate, setEndDate }: Dat
         )}
       </div>
 
-      <div style={{ position: 'relative' }}>
-        <label htmlFor="endDate">End Date:</label>
-        <div className="field-row" style={{ alignItems: 'center' }}>
-          <input
-            id="endDate"
-            type="text"
-            readOnly
-            value={endDate ? endDate.toLocaleDateString() : ""}
-            style={{ width: '150px' }}
-            onClick={() => setIsEndCalendarOpen(!isEndCalendarOpen)}
-          />
-          <button onClick={() => setIsEndCalendarOpen(!isEndCalendarOpen)}>
-            📅
-          </button>
-        </div>
-        {isEndCalendarOpen && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 1 }}>
-            <Calendar onDateSelect={handleSelectEndDate} initialDate={endDate || undefined} minDate={startDate || undefined} />
+      {showEndDate && (
+        <div style={{ position: 'relative' }}>
+          <label htmlFor="endDate">End Date:</label>
+          <div className="field-row" style={{ alignItems: 'center' }}>
+            <input
+              id="endDate"
+              type="text"
+              readOnly
+              value={endDate ? endDate.toLocaleDateString() : ""}
+              style={{ width: '150px' }}
+              onClick={() => setIsEndCalendarOpen(!isEndCalendarOpen)}
+            />
+            <button onClick={() => setIsEndCalendarOpen(!isEndCalendarOpen)}>
+              📅
+            </button>
           </div>
-        )}
-      </div>
+          {isEndCalendarOpen && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 1 }}>
+              <Calendar onDateSelect={handleSelectEndDate} initialDate={endDate || undefined} minDate={startDate || undefined} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -95,7 +95,7 @@ export async function PUT(
 
     // Build update query dynamically
     const updateFields: string[] = [];
-    const args: Record<string, any> = { eventId };
+    const args: Record<string, string | number | boolean | null> = { eventId };
 
     if (updateData.title !== undefined) {
       updateFields.push("title = :title");

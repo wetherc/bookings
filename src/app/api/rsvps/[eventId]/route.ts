@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDbClient } from "@/lib/db/client";
-import { nanoid } from 'nanoid';
 
 // GET handler to fetch a single RSVP by eventId and respondentToken
 export async function GET(

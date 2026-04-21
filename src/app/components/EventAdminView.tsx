@@ -3,6 +3,32 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
 
+interface TimeBlock {
+  startDate: string;
+  endDate: string;
+  startTime: { hour: number; minute: number };
+  endTime: { hour: number; minute: number };
+}
+
+interface EventData {
+  event_id: string;
+  title: string;
+  description: string;
+  block_minutes: number;
+  time_slots: TimeBlock[];
+}
+
+interface RsvpData {
+  respondent_token: string;
+  name: string;
+  selected_slots: string[];
+}
+
+interface FetchedData {
+  event: EventData;
+  rsvps: RsvpData[];
+}
+
 const formatTimePart = (value: number) => String(value).padStart(2, "0");
 
 interface EventAdminViewProps {
@@ -16,40 +42,106 @@ export function EventAdminView({
   token,
   onTitleLoaded,
 }: EventAdminViewProps) {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<FetchedData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function getEventData() {
-      setIsLoading(true);
-      setError(null);
+  // State for inline editing
+  const [isEditing, setIsEditing] = useState(false);
+  const [editableTitle, setEditableTitle] = useState("");
+  const [editableDescription, setEditableDescription] = useState("");
+  const [editableBlockMinutes, setEditableBlockMinutes] = useState(30);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
-      const url = `/api/events/${eventId}?token=${token}`;
+  const getEventData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
 
-      try {
-        const res = await fetch(url);
+    const url = `/api/events/${eventId}?token=${token}`;
 
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.message || `Error: ${res.status}`);
-        }
+    try {
+      const res = await fetch(url);
 
-        const fetchedData = await res.json();
-        setData(fetchedData);
-        if (fetchedData.event?.title) {
-          onTitleLoaded(fetchedData.event.title);
-        }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "An unknown error occurred.");
-      } finally {
-        setIsLoading(false);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Error: ${res.status}`);
       }
-    }
 
-    getEventData();
+      const fetchedData = await res.json();
+      setData(fetchedData);
+      if (fetchedData.event?.title) {
+        onTitleLoaded(fetchedData.event.title);
+        // Initialize editable fields
+        setEditableTitle(fetchedData.event.title);
+        setEditableDescription(fetchedData.event.description || "");
+        setEditableBlockMinutes(fetchedData.event.block_minutes);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "An unknown error occurred.");
+    } finally {
+      setIsLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, token]);
+
+  useEffect(() => {
+    getEventData();
+  }, [getEventData]);
+
+  const handleEdit = () => {
+    // Reset fields to current state in case of previous edits
+    if (data?.event) {
+      setEditableTitle(data.event.title);
+      setEditableDescription(data.event.description || "");
+      setEditableBlockMinutes(data.event.block_minutes);
+    }
+    setEditError(null);
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditError(null);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setEditError(null);
+
+    const url = `/api/events/${eventId}`;
+    const payload = {
+      title: editableTitle,
+      description: editableDescription,
+      block_minutes: Number(editableBlockMinutes),
+      admin_token: token,
+    };
+
+    try {
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Error: ${res.status}`);
+      }
+
+      // Refresh data to show updated details
+      await getEventData();
+      setIsEditing(false);
+    } catch (e) {
+      setEditError(
+        e instanceof Error ? e.message : "Failed to save. Please try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const { dates, timeSlots, dateToTimeMap } = useMemo(() => {
     if (!data?.event || !Array.isArray(data.event.time_slots)) {
@@ -57,14 +149,14 @@ export function EventAdminView({
     }
 
     const allPossibleSlots: string[] = [];
-    data.event.time_slots.forEach((timeBlock: any) => {
+    data.event.time_slots.forEach((timeBlock: TimeBlock) => {
       const start = new Date(timeBlock.startDate);
       start.setUTCHours(0, 0, 0, 0);
 
       const end = new Date(timeBlock.endDate);
       end.setUTCHours(0, 0, 0, 0);
 
-      let currentDate = new Date(start);
+      const currentDate = new Date(start);
       while (currentDate <= end) {
         const currentSlotStart = new Date(currentDate.getTime());
         currentSlotStart.setUTCHours(
@@ -82,7 +174,7 @@ export function EventAdminView({
           0,
         );
 
-        let currentBlock = new Date(currentSlotStart.getTime());
+        const currentBlock = new Date(currentSlotStart.getTime());
         while (currentBlock < currentSlotEnd) {
           allPossibleSlots.push(currentBlock.toISOString());
           currentBlock.setUTCMinutes(currentBlock.getUTCMinutes() + 30);
@@ -114,14 +206,14 @@ export function EventAdminView({
     };
   }, [data?.event]);
 
+  const rsvps = useMemo(() => data?.rsvps || [], [data?.rsvps]);
+  const event = useMemo(() => data?.event, [data?.event]);
   // Derive rsvps and event from data here, as they are needed for the next useMemo
-  const rsvps = data?.rsvps || [];
-  const event = data?.event;
 
   const slotCounts = useMemo(() => {
     const counts = new Map<string, number>();
     if (rsvps) {
-      rsvps.forEach((rsvp: any) => {
+      rsvps.forEach((rsvp: RsvpData) => {
         rsvp.selected_slots.forEach((slot: string) => {
           counts.set(slot, (counts.get(slot) || 0) + 1);
         });
@@ -133,7 +225,7 @@ export function EventAdminView({
   const attendeesPerSlot = useMemo(() => {
     const map = new Map<string, string[]>();
     if (rsvps) {
-      rsvps.forEach((rsvp: any) => {
+      rsvps.forEach((rsvp: RsvpData) => {
         const attendeeName = rsvp.name;
         rsvp.selected_slots.forEach((slot: string) => {
           if (!map.has(slot)) {
@@ -172,7 +264,7 @@ export function EventAdminView({
         } else {
           // End of a contiguous block
           if (currentContiguousBlock.length > 0) {
-            const blockDurationMinutes = currentContiguousBlock.length * 30; // Each slot is 30 minutes
+            const blockDurationMinutes = currentContiguousBlock.length * 30;
             if (blockDurationMinutes >= event.block_minutes) {
               currentContiguousBlock.forEach((slot) =>
                 qualifiedSlots.add(slot),
@@ -185,7 +277,8 @@ export function EventAdminView({
 
       // Check for any remaining block at the end of the day
       if (currentContiguousBlock.length > 0) {
-        const blockDurationMinutes = currentContiguousBlock.length * 30;
+        const blockDurationMinutes =
+          currentContiguousBlock.length * event.block_minutes;
         if (blockDurationMinutes >= event.block_minutes) {
           currentContiguousBlock.forEach((slot) => qualifiedSlots.add(slot));
         }
@@ -193,9 +286,10 @@ export function EventAdminView({
     });
 
     return qualifiedSlots;
-  }, [dates, timeSlots, slotCounts, rsvps.length, event?.block_minutes]);
+  }, [dates, timeSlots, slotCounts, rsvps, event]);
 
-  if (isLoading) {
+  if (isLoading && !data) {
+    // Show initial loading state only on first load
     return <div>Loading...</div>;
   }
 
@@ -203,7 +297,7 @@ export function EventAdminView({
     return <div style={{ color: "red" }}>Error: {error}</div>;
   }
 
-  if (!data) {
+  if (!data || !event) {
     return <div>No data found.</div>;
   }
 
@@ -216,22 +310,80 @@ export function EventAdminView({
     <>
       <fieldset>
         <legend>Event Details</legend>
-        <p>
-          <strong>Title:</strong> {event.title}
-        </p>
-        <p>
-          <strong>Description:</strong> {event.description || "N/A"}
-        </p>
-        <p>
-          <strong>Event Duration:</strong> {event.block_minutes} minutes
-        </p>
+        {isEditing ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div>
+              <label htmlFor="eventTitle" style={{ display: "block" }}>
+                Title
+              </label>
+              <input
+                type="text"
+                id="eventTitle"
+                value={editableTitle}
+                onChange={(e) => setEditableTitle(e.target.value)}
+                style={{ width: "100%" }}
+              />
+            </div>
+            <div>
+              <label htmlFor="eventDescription" style={{ display: "block" }}>
+                Description
+              </label>
+              <textarea
+                id="eventDescription"
+                value={editableDescription}
+                onChange={(e) => setEditableDescription(e.target.value)}
+                style={{ width: "100%", minHeight: "80px" }}
+              />
+            </div>
+            <div>
+              <label htmlFor="eventDuration" style={{ display: "block" }}>
+                Event Duration (minutes)
+              </label>
+              <select
+                id="eventDuration"
+                value={editableBlockMinutes}
+                onChange={(e) =>
+                  setEditableBlockMinutes(Number(e.target.value))
+                }
+              >
+                <option value={15}>15</option>
+                <option value={30}>30</option>
+                <option value={60}>60</option>
+              </select>
+            </div>
+            {editError && <div style={{ color: "red" }}>{editError}</div>}
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button onClick={handleSave} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save"}
+              </button>
+              <button onClick={handleCancel} disabled={isSaving}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p>
+              <strong>Title:</strong> {event.title}
+            </p>
+            <p>
+              <strong>Description:</strong> {event.description || "N/A"}
+            </p>
+            <p>
+              <strong>Event Duration:</strong> {event.block_minutes} minutes
+            </p>
+            <button onClick={handleEdit} style={{ marginTop: "0.5rem" }}>
+              Edit
+            </button>
+          </>
+        )}
       </fieldset>
 
       <fieldset style={{ marginTop: "1rem" }}>
         <legend>Event Links</legend>
         <div style={{ marginBottom: "1rem" }}>
           <p>
-            This is your secret admin link. Keep it safe! You'll need it to see
+            This is your secret admin link. Keep it safe! You&apos;ll need it to see
             this page again.
           </p>
           <div style={{ display: "flex", alignItems: "center" }}>
@@ -265,7 +417,7 @@ export function EventAdminView({
         <legend>Proposed Time Slots</legend>
         <div style={{ maxHeight: "150px", overflowY: "auto" }}>
           <ul className="tree-view">
-            {event.time_slots.map((time: any, index: number) => (
+            {event.time_slots.map((time: TimeBlock, index: number) => (
               <li key={index}>
                 {new Date(time.startDate).toLocaleDateString()} -{" "}
                 {new Date(time.endDate).toLocaleDateString()} from{" "}
@@ -368,7 +520,7 @@ export function EventAdminView({
         {rsvps.length > 0 ? (
           <div style={{ maxHeight: "250px", overflowY: "auto" }}>
             <ul className="tree-view">
-              {rsvps.map((rsvp: any) => (
+              {rsvps.map((rsvp: RsvpData) => (
                 <li key={rsvp.respondent_token}>
                   <details>
                     <summary>{rsvp.name}</summary>
