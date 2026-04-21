@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
+import { EventDurationSelector } from "./EventDurationSelector";
+import { TimeSlotManager } from "./TimeSlotManager";
+import { type EventTime, formatTimePart } from "@/lib/utils";
+import { Alert } from "./Alert";
 
 interface TimeBlock {
   startDate: string;
@@ -29,8 +33,6 @@ interface FetchedData {
   rsvps: RsvpData[];
 }
 
-const formatTimePart = (value: number) => String(value).padStart(2, "0");
-
 interface EventAdminViewProps {
   eventId: string;
   token: string;
@@ -53,6 +55,9 @@ export function EventAdminView({
   const [editableBlockMinutes, setEditableBlockMinutes] = useState(30);
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  const [isEditingTimeSlots, setIsEditingTimeSlots] = useState(false);
+  const [editableTimeSlots, setEditableTimeSlots] = useState<EventTime[]>([]);
 
   const getEventData = useCallback(async () => {
     setIsLoading(true);
@@ -143,9 +148,66 @@ export function EventAdminView({
     }
   };
 
-  const { dates, timeSlots, dateToTimeMap } = useMemo(() => {
+  const handleEditTimeSlots = () => {
+    if (!data?.event.time_slots) return;
+    
+    const timeSlotsWithDateObjects = data.event.time_slots.map(
+      (ts, index) => ({
+        ...ts,
+        id: index, // Simple id for now
+        startDate: new Date(ts.startDate),
+        endDate: new Date(ts.endDate),
+      }),
+    );
+    setEditableTimeSlots(timeSlotsWithDateObjects);
+    setIsEditingTimeSlots(true);
+  };
+
+  const handleCancelTimeSlots = () => {
+    setIsEditingTimeSlots(false);
+    setEditableTimeSlots([]);
+    setEditError(null);
+  };
+
+  const handleSaveTimeSlots = async () => {
+    setIsSaving(true);
+    setEditError(null);
+
+    const url = `/api/events/${eventId}`;
+    const payload = {
+      time_slots: editableTimeSlots,
+      admin_token: token,
+    };
+
+    try {
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Error: ${res.status}`);
+      }
+
+      // Refresh data to show updated details
+      await getEventData();
+      setIsEditingTimeSlots(false);
+    } catch (e) {
+      setEditError(
+        e instanceof Error ? e.message : "Failed to save. Please try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const { dates, timeSlots, dateToTimeMap, allPossibleSlotsSet } = useMemo(() => {
     if (!data?.event || !Array.isArray(data.event.time_slots)) {
-      return { dates: [], timeSlots: [], dateToTimeMap: new Map() };
+      return { dates: [], timeSlots: [], dateToTimeMap: new Map(), allPossibleSlotsSet: new Set<string>() };
     }
 
     const allPossibleSlots: string[] = [];
@@ -184,6 +246,7 @@ export function EventAdminView({
       }
     });
 
+    const allPossibleSlotsSet = new Set(allPossibleSlots);
     const dateToTimeMap = new Map<string, Set<string>>();
     const timeSet = new Set<string>();
 
@@ -203,6 +266,7 @@ export function EventAdminView({
       dates: Array.from(dateToTimeMap.keys()).sort(),
       timeSlots: Array.from(timeSet).sort(),
       dateToTimeMap,
+      allPossibleSlotsSet,
     };
   }, [data?.event]);
 
@@ -245,7 +309,7 @@ export function EventAdminView({
 
     const allAttendeesAvailableSlots = new Set<string>();
     slotCounts.forEach((count, isoString) => {
-      if (count === rsvps.length) {
+      if (count === rsvps.length && allPossibleSlotsSet.has(isoString)) {
         allAttendeesAvailableSlots.add(isoString);
       }
     });
@@ -278,7 +342,7 @@ export function EventAdminView({
       // Check for any remaining block at the end of the day
       if (currentContiguousBlock.length > 0) {
         const blockDurationMinutes =
-          currentContiguousBlock.length * event.block_minutes;
+          currentContiguousBlock.length * 30;
         if (blockDurationMinutes >= event.block_minutes) {
           currentContiguousBlock.forEach((slot) => qualifiedSlots.add(slot));
         }
@@ -286,7 +350,7 @@ export function EventAdminView({
     });
 
     return qualifiedSlots;
-  }, [dates, timeSlots, slotCounts, rsvps, event]);
+  }, [dates, timeSlots, slotCounts, rsvps, event, allPossibleSlotsSet]);
 
   if (isLoading && !data) {
     // Show initial loading state only on first load
@@ -308,10 +372,13 @@ export function EventAdminView({
 
   return (
     <>
+      {editError && <Alert message={editError} onClose={() => setEditError(null)} />}
       <fieldset>
         <legend>Event Details</legend>
         {isEditing ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+          >
             <div>
               <label htmlFor="eventTitle" style={{ display: "block" }}>
                 Title
@@ -335,23 +402,13 @@ export function EventAdminView({
                 style={{ width: "100%", minHeight: "80px" }}
               />
             </div>
-            <div>
-              <label htmlFor="eventDuration" style={{ display: "block" }}>
-                Event Duration (minutes)
-              </label>
-              <select
-                id="eventDuration"
-                value={editableBlockMinutes}
-                onChange={(e) =>
-                  setEditableBlockMinutes(Number(e.target.value))
-                }
-              >
-                <option value={15}>15</option>
-                <option value={30}>30</option>
-                <option value={60}>60</option>
-              </select>
-            </div>
-            {editError && <div style={{ color: "red" }}>{editError}</div>}
+            <EventDurationSelector
+              id="eventDuration"
+              label="Event Duration (minutes)"
+              value={editableBlockMinutes}
+              onChange={setEditableBlockMinutes}
+              labelStyle={{ display: "block" }}
+            />
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? "Saving..." : "Save"}
@@ -383,8 +440,8 @@ export function EventAdminView({
         <legend>Event Links</legend>
         <div style={{ marginBottom: "1rem" }}>
           <p>
-            This is your secret admin link. Keep it safe! You&apos;ll need it to see
-            this page again.
+            This is your secret admin link. Keep it safe! You&apos;ll need it to
+            see this page again.
           </p>
           <div style={{ display: "flex", alignItems: "center" }}>
             <input
@@ -415,20 +472,44 @@ export function EventAdminView({
 
       <fieldset style={{ marginTop: "1rem" }}>
         <legend>Proposed Time Slots</legend>
-        <div style={{ maxHeight: "150px", overflowY: "auto" }}>
-          <ul className="tree-view">
-            {event.time_slots.map((time: TimeBlock, index: number) => (
-              <li key={index}>
-                {new Date(time.startDate).toLocaleDateString()} -{" "}
-                {new Date(time.endDate).toLocaleDateString()} from{" "}
-                {formatTimePart(time.startTime.hour)}:
-                {formatTimePart(time.startTime.minute)} to{" "}
-                {formatTimePart(time.endTime.hour)}:
-                {formatTimePart(time.endTime.minute)}
-              </li>
-            ))}
-          </ul>
-        </div>
+        {isEditingTimeSlots ? (
+          <>
+            <TimeSlotManager
+              eventTimes={editableTimeSlots}
+              setEventTimes={setEditableTimeSlots}
+            />
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+              <button onClick={handleSaveTimeSlots} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save Changes"}
+              </button>
+              <button onClick={handleCancelTimeSlots} disabled={isSaving}>
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ maxHeight: "150px", overflowY: "auto" }}>
+              <ul className="tree-view">
+                {event.time_slots.map((time: TimeBlock, index: number) => (
+                  <li key={index}>
+                    {new Date(time.startDate).toLocaleDateString()} from{" "}
+                    {formatTimePart(time.startTime.hour)}:
+                    {formatTimePart(time.startTime.minute)} to{" "}
+                    {formatTimePart(time.endTime.hour)}:
+                    {formatTimePart(time.endTime.minute)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <button
+              onClick={handleEditTimeSlots}
+              style={{ marginTop: "0.5rem" }}
+            >
+              Edit Time Slots
+            </button>
+          </>
+        )}
       </fieldset>
 
       <fieldset style={{ marginTop: "1rem" }}>
@@ -472,36 +553,34 @@ export function EventAdminView({
                     )}
                   </td>
                   {timeSlots.map((time) => {
-                    const slotExists = dateToTimeMap.get(date)?.has(time);
+                    const [hour, minute] = time.split(":").map(Number);
+                    const dateObj = new Date(`${date}T00:00:00Z`);
+                    dateObj.setUTCHours(hour, minute);
+                    const isoString = dateObj.toISOString();
 
-                    let isoString = "";
-                    if (slotExists) {
-                      const [hour, minute] = time.split(":").map(Number);
-                      const dateObj = new Date(`${date}T00:00:00Z`);
-                      dateObj.setUTCHours(hour, minute);
-                      isoString = dateObj.toISOString();
-                    }
-
-                    const count = slotExists
-                      ? slotCounts.get(isoString) || 0
-                      : 0;
+                    const slotExists = allPossibleSlotsSet.has(isoString);
+                    const count = slotCounts.get(isoString) || 0;
+                    const attendees = attendeesPerSlot.get(isoString) || [];
 
                     return (
                       <td
                         key={time}
                         title={
-                          attendeesPerSlot.has(isoString)
-                            ? `Attendees: ${attendeesPerSlot.get(isoString)!.join(", ")}`
-                            : "No attendees available for this slot"
+                          slotExists
+                            ? attendees.length > 0
+                              ? `Attendees: ${attendees.join(", ")}`
+                              : "No attendees available"
+                            : ""
                         }
                         style={{
                           textAlign: "center",
                           backgroundColor: slotExists
                             ? `rgba(0, 255, 0, ${count / (rsvps.length || 1)})`
                             : "transparent",
-                          border: qualifiedSlotsToBorder.has(isoString)
-                            ? "3px solid black"
-                            : "1px solid transparent",
+                          border:
+                            slotExists && qualifiedSlotsToBorder.has(isoString)
+                              ? "3px solid black"
+                              : "1px solid transparent",
                         }}
                       >
                         {slotExists ? count : ""}

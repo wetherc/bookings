@@ -82,6 +82,19 @@ export function VisualCalendar({
     setDragMode(null);
   };
 
+  const handleHeaderClick = (date: Date) => {
+    const columnIsoStrings = timeSlots.map((time) => getIsoString(date, time));
+    const allSelected = columnIsoStrings.every((iso) => selectedSlots.has(iso));
+    const newSelectedSlots = new Set(selectedSlots);
+
+    if (allSelected) {
+      columnIsoStrings.forEach((iso) => newSelectedSlots.delete(iso));
+    } else {
+      columnIsoStrings.forEach((iso) => newSelectedSlots.add(iso));
+    }
+    setSelectedSlots(newSelectedSlots);
+  };
+
   return (
     <div
       style={{ marginTop: "1rem", overflowX: "auto" }}
@@ -95,7 +108,11 @@ export function VisualCalendar({
         <thead>
           <tr>
             {dates.map((date, index) => (
-              <th key={index} style={{ width: `${100 / 7}%` }}>
+              <th
+                key={index}
+                style={{ width: `${100 / 7}%`, cursor: "pointer" }}
+                onClick={() => handleHeaderClick(date)}
+              >
                 {date
                   .toLocaleDateString(undefined, { weekday: "short" })
                   .toUpperCase()}
