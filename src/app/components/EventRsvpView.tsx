@@ -33,12 +33,14 @@ interface EventRsvpViewProps {
   eventId: string;
   respondentToken?: string;
   onTitleLoaded: (title: string, type: "admin" | "rsvp") => void;
+  onRsvpCreated: (eventId: string, respondentToken: string) => void;
 }
 
 export function EventRsvpView({
   eventId,
-  respondentToken: initialRespondentToken,
+  respondentToken,
   onTitleLoaded,
+  onRsvpCreated,
 }: EventRsvpViewProps) {
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [respondentName, setRespondentName] = useState("");
@@ -46,10 +48,7 @@ export function EventRsvpView({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [rsvpSaved, setRsvpSaved] = useState(false);
-  const [currentRespondentToken, setCurrentRespondentToken] = useState<
-    string | undefined
-  >(initialRespondentToken);
+  const [rsvpSaved, setRsvpSaved] = useState(!!respondentToken);
 
   const { dates, timeSlots, dateToTimeMap } = useMemo(() => {
     if (!eventData || !Array.isArray(eventData.time_slots)) {
@@ -98,8 +97,12 @@ export function EventRsvpView({
 
     allPossibleSlots.forEach((isoString) => {
       const date = new Date(isoString);
-      const dateKey = `${date.getUTCFullYear()}-${formatTimePart(date.getUTCMonth() + 1)}-${formatTimePart(date.getUTCDate())}`;
-      const timeKey = `${formatTimePart(date.getUTCHours())}:${formatTimePart(date.getUTCMinutes())}`;
+      const dateKey = `${date.getUTCFullYear()}-${formatTimePart(
+        date.getUTCMonth() + 1,
+      )}-${formatTimePart(date.getUTCDate())}`;
+      const timeKey = `${formatTimePart(
+        date.getUTCHours(),
+      )}:${formatTimePart(date.getUTCMinutes())}`;
 
       if (!dateToTimeMap.has(dateKey)) {
         dateToTimeMap.set(dateKey, new Set());
@@ -119,7 +122,12 @@ export function EventRsvpView({
     async function fetchData() {
       setIsLoading(true);
       setError(null);
-      setRsvpSaved(false);
+      // Reset form state only if there's no token
+      if (!respondentToken) {
+        setRespondentName("");
+        setSelectedSlots([]);
+        setRsvpSaved(false);
+      }
 
       try {
         const eventRes = await fetch(`/api/events/${eventId}`);
@@ -138,9 +146,9 @@ export function EventRsvpView({
           throw new Error("Event data is missing in API response.");
         }
 
-        if (currentRespondentToken) {
+        if (respondentToken) {
           const rsvpRes = await fetch(
-            `/api/rsvps/${eventId}?token=${currentRespondentToken}`,
+            `/api/rsvps/${eventId}?token=${respondentToken}`,
           );
           if (!rsvpRes.ok) {
             if (rsvpRes.status !== 404) {
@@ -149,6 +157,8 @@ export function EventRsvpView({
                 errorData.message || `Error fetching RSVP: ${rsvpRes.status}`,
               );
             }
+             // If 404, a token is in the URL but is invalid.
+             setRsvpSaved(false);
           } else {
             const fetchedRsvpData = await rsvpRes.json();
             setRespondentName(fetchedRsvpData.name);
@@ -164,7 +174,7 @@ export function EventRsvpView({
     }
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, currentRespondentToken]);
+  }, [eventId, respondentToken]);
 
   const handleSlotSelection = (slot: string) => {
     setSelectedSlots((prev) =>
@@ -223,7 +233,9 @@ export function EventRsvpView({
     const slotsByDate: { [date: string]: string[] } = {};
     selectedSlots.forEach((isoString) => {
       const date = new Date(isoString);
-      const dateKey = `${date.getUTCFullYear()}-${formatTimePart(date.getUTCMonth() + 1)}-${formatTimePart(date.getUTCDate())}`;
+      const dateKey = `${date.getUTCFullYear()}-${formatTimePart(
+        date.getUTCMonth() + 1,
+      )}-${formatTimePart(date.getUTCDate())}`;
       if (!slotsByDate[dateKey]) {
         slotsByDate[dateKey] = [];
       }
@@ -294,9 +306,9 @@ export function EventRsvpView({
     }
 
     try {
-      const method = currentRespondentToken ? "PUT" : "POST";
-      const url = currentRespondentToken
-        ? `/api/rsvps/${eventId}?token=${currentRespondentToken}`
+      const method = respondentToken ? "PUT" : "POST";
+      const url = respondentToken
+        ? `/api/rsvps/${eventId}?token=${respondentToken}`
         : `/api/rsvps`;
 
       const body = {
@@ -320,8 +332,8 @@ export function EventRsvpView({
       }
 
       const responseData = await res.json();
-      if (responseData.respondent_token && !currentRespondentToken) {
-        setCurrentRespondentToken(responseData.respondent_token);
+      if (responseData.respondent_token && !respondentToken) {
+        onRsvpCreated(eventId, responseData.respondent_token);
       }
       setRsvpSaved(true);
     } catch (e) {
@@ -347,8 +359,8 @@ export function EventRsvpView({
     return <div>Event not found or cannot be RSVPed to.</div>;
   }
 
-  const rsvpLink = currentRespondentToken
-    ? `${window.location.origin}/events/${eventId}?token=${currentRespondentToken}`
+  const rsvpLink = respondentToken
+    ? `${window.location.origin}/events/${eventId}?token=${respondentToken}`
     : "";
 
   return (
@@ -384,6 +396,7 @@ export function EventRsvpView({
           rsvpLink={rsvpLink}
           onEdit={() => setRsvpSaved(false)}
           isSubmitting={isSubmitting}
+          blockMinutes={eventData.block_minutes}
         />
       )}
 

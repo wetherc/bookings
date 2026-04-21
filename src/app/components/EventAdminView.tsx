@@ -146,7 +146,7 @@ export function EventAdminView({
 
       <AvailabilityGrid event={event} rsvps={rsvps} />
 
-      <RsvpList rsvps={rsvps} />
+      <RsvpList rsvps={rsvps} blockMinutes={event.block_minutes} />
     </>
   );
 }

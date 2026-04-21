@@ -1,5 +1,6 @@
 "use client";
 
+import { groupAndFormatSlots } from "@/lib/utils";
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
 
 interface RsvpConfirmationProps {
@@ -8,6 +9,7 @@ interface RsvpConfirmationProps {
   rsvpLink: string;
   onEdit: () => void;
   isSubmitting: boolean;
+  blockMinutes: number;
 }
 
 export function RsvpConfirmation({
@@ -16,6 +18,7 @@ export function RsvpConfirmation({
   rsvpLink,
   onEdit,
   isSubmitting,
+  blockMinutes,
 }: RsvpConfirmationProps) {
   return (
     <>
@@ -37,22 +40,8 @@ export function RsvpConfirmation({
           </p>
           {selectedSlots.length > 0 ? (
             <ul>
-              {selectedSlots
-                .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
-                .map((slot) => (
-                <li key={slot}>
-                  <span className="datetime-part">
-                    {new Date(slot).toLocaleDateString([], { timeZone: "UTC" })}
-                  </span>
-                  <span className="datetime-part">
-                    {new Date(slot).toLocaleTimeString([], {
-                      timeZone: "UTC",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false,
-                    })}
-                  </span>
-                </li>
+              {groupAndFormatSlots(selectedSlots, blockMinutes).map((slot) => (
+                <li key={slot}>{slot}</li>
               ))}
             </ul>
           ) : (

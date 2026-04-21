@@ -196,6 +196,11 @@ function HomePage() {
                 eventId={activeTab.id} 
                 respondentToken={activeTab.respondentToken}
                 onTitleLoaded={onTitleLoadedForRsvp}
+                onRsvpCreated={(eventId, token) => {
+                  setTabs(prevTabs => prevTabs.map(tab =>
+                    tab.id === eventId ? { ...tab, respondentToken: token } : tab
+                  ));
+                }}
               />
             )}
             {activeTab?.type === 'admin' && activeTab.token && (

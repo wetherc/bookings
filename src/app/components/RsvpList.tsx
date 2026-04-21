@@ -1,5 +1,7 @@
 "use client";
 
+import { groupAndFormatSlots } from "@/lib/utils";
+
 interface RsvpData {
   respondent_token: string;
   name: string;
@@ -8,9 +10,10 @@ interface RsvpData {
 
 interface RsvpListProps {
   rsvps: RsvpData[];
+  blockMinutes: number;
 }
 
-export function RsvpList({ rsvps }: RsvpListProps) {
+export function RsvpList({ rsvps, blockMinutes }: RsvpListProps) {
   return (
     <fieldset style={{ marginTop: "1rem" }}>
       <legend>RSVPs ({rsvps.length})</legend>
@@ -22,9 +25,11 @@ export function RsvpList({ rsvps }: RsvpListProps) {
                 <details>
                   <summary>{rsvp.name}</summary>
                   <ul>
-                    {rsvp.selected_slots.map((slot: string) => (
-                      <li key={slot}>{new Date(slot).toLocaleString()}</li>
-                    ))}
+                    {groupAndFormatSlots(rsvp.selected_slots, blockMinutes).map(
+                      (formattedSlot) => (
+                        <li key={formattedSlot}>{formattedSlot}</li>
+                      ),
+                    )}
                   </ul>
                 </details>
               </li>
