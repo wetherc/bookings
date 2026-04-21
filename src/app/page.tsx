@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CreateEventForm } from "./components/CreateEventForm";
 import { EventAdminView } from "./components/EventAdminView";
@@ -116,14 +116,26 @@ function HomePage() {
     setTabs(newTabs);
   };
 
-  const handleTitleLoaded = (eventId: string, newTitle: string, type: 'admin' | 'rsvp') => {
+  const handleTitleLoaded = useCallback((eventId: string, newTitle: string, type: 'admin' | 'rsvp') => {
     setTabs(prevTabs => prevTabs.map(tab => 
       tab.id === eventId ? { ...tab, title: newTitle, type: type } : tab
     ));
-  };
+  }, []);
 
   const activeTab = tabs.find(tab => tab.id === activeTabId) || tabs[0];
   
+  const onTitleLoadedForAdmin = useCallback((newTitle: string) => {
+    if (activeTab) {
+      handleTitleLoaded(activeTab.id, newTitle, 'admin');
+    }
+  }, [activeTab?.id, handleTitleLoaded]);
+
+  const onTitleLoadedForRsvp = useCallback((newTitle: string, type: 'admin' | 'rsvp') => {
+    if (activeTab) {
+      handleTitleLoaded(activeTab.id, newTitle, type);
+    }
+  }, [activeTab?.id, handleTitleLoaded]);
+
   const truncate = (str: string, len: number) => {
     return str.length > len ? str.substring(0, len) + "..." : str;
   }
@@ -183,14 +195,14 @@ function HomePage() {
               <EventRsvpView 
                 eventId={activeTab.id} 
                 respondentToken={activeTab.respondentToken}
-                onTitleLoaded={(newTitle, type) => handleTitleLoaded(activeTab.id, newTitle, type)}
+                onTitleLoaded={onTitleLoadedForRsvp}
               />
             )}
             {activeTab?.type === 'admin' && activeTab.token && (
               <EventAdminView 
                 eventId={activeTab.id} 
                 token={activeTab.token}
-                onTitleLoaded={(newTitle) => handleTitleLoaded(activeTab.id, newTitle, 'admin')}
+                onTitleLoaded={onTitleLoadedForAdmin}
               />
             )}
           </div>
