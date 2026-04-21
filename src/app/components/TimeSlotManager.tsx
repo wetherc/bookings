@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type SetStateAction } from "react";
 import { VisualCalendar } from "./VisualCalendar";
 import { DatePicker } from "./DatePicker";
 import { Alert } from "./Alert";
@@ -16,12 +16,13 @@ interface TimeSlotManagerProps {
   setEventTimes: React.Dispatch<React.SetStateAction<EventTime[]>>;
 }
 
-interface SerializedEventTime {
-  id: number;
-  startDate: string;
-  endDate: string;
+interface TimeSlotManagerState {
+  startDate: Date | null;
+  endDate: Date | null;
   startTime: { hour: number; minute: number };
   endTime: { hour: number; minute: number };
+  calendarType: string;
+  selectedVisualSlots: Set<string>;
 }
 
 // Using a different session storage key to avoid conflicts
@@ -31,15 +32,43 @@ export function TimeSlotManager({
   eventTimes,
   setEventTimes,
 }: TimeSlotManagerProps) {
-  const [startDate, setStartDate] = useState<Date | null>(new Date());
-  const [endDate, setEndDate] = useState<Date | null>(null);
-  const [startTime, setStartTime] = useState({ hour: 9, minute: 0 });
-  const [endTime, setEndTime] = useState({ hour: 17, minute: 0 });
+  const [state, setState] = useState<TimeSlotManagerState>(() => {
+    if (typeof window !== "undefined") {
+      const savedState = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (savedState) {
+        const parsed = JSON.parse(savedState);
+        return {
+          startDate: parsed.startDate ? new Date(parsed.startDate) : new Date(),
+          endDate: parsed.endDate ? new Date(parsed.endDate) : null,
+          startTime: parsed.startTime || { hour: 9, minute: 0 },
+          endTime: parsed.endTime || { hour: 17, minute: 0 },
+          calendarType: parsed.calendarType || "Traditional",
+          selectedVisualSlots: new Set(
+            (parsed.selectedVisualSlots || []) as string[],
+          ),
+        };
+      }
+    }
+    return {
+      startDate: new Date(),
+      endDate: null,
+      startTime: { hour: 9, minute: 0 },
+      endTime: { hour: 17, minute: 0 },
+      calendarType: "Traditional",
+      selectedVisualSlots: new Set<string>(),
+    };
+  });
+
+  const {
+    startDate,
+    endDate,
+    startTime,
+    endTime,
+    calendarType,
+    selectedVisualSlots,
+  } = state;
+
   const [alert, setAlert] = useState({ isOpen: false, message: "" });
-  const [calendarType, setCalendarType] = useState("Traditional");
-  const [selectedVisualSlots, setSelectedVisualSlots] = useState<Set<string>>(
-    new Set()
-  );
 
   // The session storage logic from CreateEventForm is probably not fully needed here,
   // especially if this component is used in different contexts.
@@ -47,55 +76,29 @@ export function TimeSlotManager({
   // The state it saves/loads is local to this component.
 
   useEffect(() => {
-    const savedState = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (savedState) {
-      const parsed = JSON.parse(savedState);
-      setStartDate(parsed.startDate ? new Date(parsed.startDate) : new Date());
-      setEndDate(parsed.endDate ? new Date(parsed.endDate) : null);
-      setStartTime(parsed.startTime || { hour: 9, minute: 0 });
-      setEndTime(parsed.endTime || { hour: 17, minute: 0 });
-      setCalendarType(parsed.calendarType || "Traditional");
-      setSelectedVisualSlots(
-        new Set((parsed.selectedVisualSlots || []) as string[])
-      );
-    }
-  }, []);
-
-  useEffect(() => {
     const stateToSave = {
-      startDate,
-      endDate,
-      startTime,
-      endTime,
-      calendarType,
-      selectedVisualSlots: Array.from(selectedVisualSlots),
+      ...state,
+      selectedVisualSlots: Array.from(state.selectedVisualSlots),
     };
     sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(stateToSave));
-  }, [
-    startDate,
-    endDate,
-    startTime,
-    endTime,
-    calendarType,
-    selectedVisualSlots,
-  ]);
+  }, [state]);
 
   const handleStartTimeChange = (part: "hour" | "minute", value: number) => {
     const newStartTime = { ...startTime, [part]: value };
-    setStartTime(newStartTime);
+    setState((s) => ({ ...s, startTime: newStartTime }));
 
     if (startDate && endDate && startDate.getTime() === endDate.getTime()) {
       const startTotalMinutes = newStartTime.hour * 60 + newStartTime.minute;
       const endTotalMinutes = endTime.hour * 60 + endTime.minute;
       if (startTotalMinutes > endTotalMinutes) {
-        setEndTime(newStartTime);
+        setState((s) => ({ ...s, endTime: newStartTime }));
       }
     }
   };
 
   const handleEndTimeChange = (part: "hour" | "minute", value: number) => {
     const newEndTime = { ...endTime, [part]: value };
-    setEndTime(newEndTime);
+    setState((s) => ({ ...s, endTime: newEndTime }));
   };
 
   const handleAddEventTime = () => {
@@ -125,8 +128,12 @@ export function TimeSlotManager({
     while (loopDate < exclusiveEndDate) {
       const newEventTime: EventTime = {
         id: loopDate.getTime() + startTotalMinutes, // Reasonably unique key
-        startDate: new Date(new Date(loopDate).setHours(startTime.hour, startTime.minute, 0, 0)),
-        endDate: new Date(new Date(loopDate).setHours(endTime.hour, endTime.minute, 0, 0)),
+        startDate: new Date(
+          new Date(loopDate).setHours(startTime.hour, startTime.minute, 0, 0),
+        ),
+        endDate: new Date(
+          new Date(loopDate).setHours(endTime.hour, endTime.minute, 0, 0),
+        ),
         startTime: startTime,
         endTime: endTime,
       };
@@ -166,7 +173,7 @@ export function TimeSlotManager({
       });
 
     setEventTimes(mergeEventTimes(eventTimes, newEventTimes));
-    setSelectedVisualSlots(new Set());
+    setState((s) => ({ ...s, selectedVisualSlots: new Set() }));
   };
 
   const handleRemoveEventTime = (id: number) => {
@@ -189,7 +196,9 @@ export function TimeSlotManager({
         <select
           id="calendarType"
           value={calendarType}
-          onChange={(e) => setCalendarType(e.target.value)}
+          onChange={(e) =>
+            setState((s) => ({ ...s, calendarType: e.target.value }))
+          }
         >
           <option value="Traditional">Traditional</option>
           <option value="Visual">Visual</option>
@@ -202,8 +211,24 @@ export function TimeSlotManager({
             <DatePicker
               startDate={startDate}
               endDate={endDate}
-              setStartDate={setStartDate}
-              setEndDate={setEndDate}
+              setStartDate={(newStartDate: SetStateAction<Date | null>) => {
+                setState((prevState) => {
+                  const resolvedDate =
+                    typeof newStartDate === "function"
+                      ? newStartDate(prevState.startDate)
+                      : newStartDate;
+                  return { ...prevState, startDate: resolvedDate };
+                });
+              }}
+              setEndDate={(newEndDate: SetStateAction<Date | null>) => {
+                setState((prevState) => {
+                  const resolvedDate =
+                    typeof newEndDate === "function"
+                      ? newEndDate(prevState.endDate)
+                      : newEndDate;
+                  return { ...prevState, endDate: resolvedDate };
+                });
+              }}
             />
             <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
               <div>
@@ -280,7 +305,15 @@ export function TimeSlotManager({
             <DatePicker
               startDate={startDate}
               endDate={null}
-              setStartDate={setStartDate}
+              setStartDate={(newStartDate: SetStateAction<Date | null>) => {
+                setState((prevState) => {
+                  const resolvedDate =
+                    typeof newStartDate === "function"
+                      ? newStartDate(prevState.startDate)
+                      : newStartDate;
+                  return { ...prevState, startDate: resolvedDate };
+                });
+              }}
               setEndDate={() => {}}
               showEndDate={false}
             />
@@ -351,7 +384,17 @@ export function TimeSlotManager({
               startTime={startTime}
               endTime={endTime}
               selectedSlots={selectedVisualSlots}
-              setSelectedSlots={setSelectedVisualSlots}
+              setSelectedSlots={(
+                newSelectedSlots: SetStateAction<Set<string>>,
+              ) => {
+                setState((prevState) => {
+                  const resolvedSlots =
+                    typeof newSelectedSlots === "function"
+                      ? newSelectedSlots(prevState.selectedVisualSlots)
+                      : newSelectedSlots;
+                  return { ...prevState, selectedVisualSlots: resolvedSlots };
+                });
+              }}
             />
             <button
               onClick={handleAddVisualSelections}
@@ -371,8 +414,8 @@ export function TimeSlotManager({
               getDisplaySegments(time).map((segment, index) => (
                 <li key={`${time.id}-${index}`}>
                   <span className="event-time-part">
-                    {segment.date.toLocaleDateString()}{" "}
-                    from {formatTimePart(segment.startTime.hour)}:
+                    {segment.date.toLocaleDateString()} from{" "}
+                    {formatTimePart(segment.startTime.hour)}:
                     {formatTimePart(segment.startTime.minute)} to{" "}
                     {formatTimePart(segment.endTime.hour)}:
                     {formatTimePart(segment.endTime.minute)}
