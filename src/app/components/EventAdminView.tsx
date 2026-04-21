@@ -205,9 +205,9 @@ export function EventAdminView({
     }
   };
 
-  const { dates, timeSlots, dateToTimeMap, allPossibleSlotsSet } = useMemo(() => {
+  const { dates, timeSlots, allPossibleSlotsSet } = useMemo(() => {
     if (!data?.event || !Array.isArray(data.event.time_slots)) {
-      return { dates: [], timeSlots: [], dateToTimeMap: new Map(), allPossibleSlotsSet: new Set<string>() };
+      return { dates: [], timeSlots: [], allPossibleSlotsSet: new Set<string>() };
     }
 
     const allPossibleSlots: string[] = [];
@@ -265,7 +265,6 @@ export function EventAdminView({
     return {
       dates: Array.from(dateToTimeMap.keys()).sort(),
       timeSlots: Array.from(timeSet).sort(),
-      dateToTimeMap,
       allPossibleSlotsSet,
     };
   }, [data?.event]);
